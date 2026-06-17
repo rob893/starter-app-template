@@ -78,8 +78,10 @@ Quality fixes are being applied in batches; earlier batches are committed. The l
 | Q-INFRA-04 | ✅ **Fixed** | Surfaced Postgres/observability sizing as `main.bicep` parameters (SKU/tier/storage/backup/HA, log + App Insights retention) with `@description`/`@allowed` and defaults = current literals; threaded into the modules. |
 | Q-INFRA-03 | ✅ **Fixed** | Removed 6 unused/placeholder outputs (`connectionStringShape`, `serverName`, `appInsightsId`, `instrumentationKey`, `workspaceName`, `keyVaultId`); kept the outputs `main.bicep` consumes. |
 | Q-INFRA-06 | ✅ **Fixed** | Aligned resource `apiVersion`s to recent stable releases (Postgres `2024-08-01`, Web `2024-11-01`, Key Vault `2024-11-01`, Log Analytics `2025-02-01`); the bump also cleared the prior BCP081 warnings. |
+| Q-CI-04 | ⛔ **Won't fix** | Leaving the API deploy job without an `environment:` gate is an accepted decision. |
+| Q-BE-05 | ⛔ **Won't fix** | By design the seeded admin uses **social login**, so there is deliberately no password in the code/seeder — the "can't log in with a password" behavior is intended. |
 
-All other findings remain **open**. Verified after the latest changes: API Release build **0 warnings** + **70/70** tests; UI **lint + build + 54/54** tests; Bicep `az bicep build` **0 warnings** (the prior BCP081 notices were cleared by the apiVersion bump).
+The only remaining **open** finding is **Q-BE-10** (AuthController business logic + duplicated OAuth flows). Verified after the latest changes: API Release build **0 warnings** + **70/70** tests; UI **lint + build + 54/54** tests; Bicep `az bicep build` **0 warnings** (the prior BCP081 notices were cleared by the apiVersion bump).
 
 ## Master ranking — all findings by Priority Score
 
@@ -93,10 +95,10 @@ All other findings remain **open**. Verified after the latest changes: API Relea
 | 4 | Q-CI-03 | ✅ | Frontend UI & Infrastructure / CI | NuGet cache key hashes non-existent `packages.lock.json` | 2 | 3 | 1 | 5.00 | Medium |
 | 5 | Q-BE-03 | n/a | Backend (.NET API & tests) | `NoteService.GetNotesAsync` bypasses DB cursor pagination/filtering; repo filter is dead | 4 | 4 | 2 | 4.00 | High |
 | 6 | Q-BE-02 | ◑ | Backend (.NET API & tests) | Dead `CursorConverters` methods + empty 0-byte duplicate file | 2 | 2 | 1 | 4.00 | Low |
-| 7 | Q-CI-04 | ☐ | Frontend UI & Infrastructure / CI | API deploy job lacks `environment:` (UI deploy has it) | 2 | 2 | 1 | 4.00 | Low |
+| 7 | Q-CI-04 | n/a | Frontend UI & Infrastructure / CI | API deploy job lacks `environment:` (UI deploy has it) | 2 | 2 | 1 | 4.00 | Low |
 | 8 | Q-CI-05 | ✅ | Frontend UI & Infrastructure / CI | `id-token: write` granted to build job that doesn't need it | 2 | 2 | 1 | 4.00 | Low |
 | 9 | Q-BE-04 | ✅ | Backend (.NET API & tests) | `AuthController` swallows exceptions into 500 with no logging | 3 | 3 | 2 | 3.00 | Medium |
-| 10 | Q-BE-05 | ☐ | Backend (.NET API & tests) | Seeded admin user has no password and cannot log in | 3 | 3 | 2 | 3.00 | Medium |
+| 10 | Q-BE-05 | n/a | Backend (.NET API & tests) | Seeded admin user has no password and cannot log in | 3 | 3 | 2 | 3.00 | Medium |
 | 11 | Q-FE-02 | ✅ | Frontend UI & Infrastructure / CI | Duplicated, divergent refresh-token implementations | 3 | 3 | 2 | 3.00 | Medium |
 | 12 | Q-FE-04 | ✅ | Frontend UI & Infrastructure / CI | Forgot/Reset pages use raw `fetch`, bypassing apiClient interceptors | 3 | 3 | 2 | 3.00 | Medium |
 | 13 | Q-FE-06 | ✅ | Frontend UI & Infrastructure / CI | No React error boundary anywhere | 3 | 3 | 2 | 3.00 | Medium |
@@ -188,6 +190,9 @@ All other findings remain **open**. Verified after the latest changes: API Relea
 - **Recommendation:** Either remove the bare `catch` and let `GlobalExceptionHandlerMiddleware` handle/log it, or inject `ILogger<AuthController>` and `logger.LogError(ex, ...)` before returning 500. Filter out cancellation: `catch (Exception ex) when (ex is not OperationCanceledException)`.
 
 #### Q-BE-05: Seeded admin user has no password and cannot log in
+
+> **Status (2026-06-17): ⛔ Won't fix** — by design the seeded admin uses social login, so no password is stored in code/the seeder; the "can't log in with a password" behavior is intended.
+
 - **Severity / Priority:** Medium / 3.0
 - **Impact / Risk / Effort:** 3 / 3 / 2
 - **Location(s):** StarterApp.API/Data/DatabaseSeeder.cs:138-160, StarterApp.API/Program.cs:58-74
@@ -329,6 +334,9 @@ These are primarily security/performance concerns (owned by other reviewers); li
 - **Recommendation:** Either enable lock files (`<RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>` and commit `packages.lock.json`, then `dotnet restore --locked-mode`), or drop the non-existent glob from the key and rely on `*.csproj` + `Directory.Packages.props` if used.
 
 #### Q-CI-04: API deploy job lacks an `environment:` while UI deploy has one
+
+> **Status (2026-06-17): ⛔ Won't fix** — leaving the API deploy job without an `environment:` gate is an accepted decision.
+
 - **Severity / Priority:** Low / 4.0
 - **Impact / Risk / Effort:** 2 / 2 / 1
 - **Location(s):** `.github/workflows/build-and-deploy-api.yml:67-71` vs `.github/workflows/build-and-deploy-ui.yml:75-81`
