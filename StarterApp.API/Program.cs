@@ -1,25 +1,18 @@
 using System;
 using System.Linq;
-using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using Azure.Identity;
 using CommandLine;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using StarterApp.API.ApplicationStartup.ApplicationBuilderExtensions;
-using StarterApp.API.ApplicationStartup.ServiceCollectionExtensions;
+using StarterApp.API.ApplicationStartup;
 using StarterApp.API.Constants;
 using StarterApp.API.Core;
 using StarterApp.API.Data;
 using StarterApp.API.Extensions;
-using StarterApp.API.Middleware;
-using StarterApp.API.Models.Settings;
-using IPNetwork = System.Net.IPNetwork;
 
 namespace StarterApp.API;
 
@@ -41,28 +34,15 @@ public static class Program
         if (builder.Configuration.GetEnvironment() != EnvironmentNames.Development)
         {
             builder.Configuration.AddAzureKeyVault(new Uri(keyVaultUrl), new DefaultAzureCredential(), new PrefixKeyVaultSecretManager(["StarterApp", "All"]));
-
-            builder.Services.AddAppInsightsServices(builder.Configuration);
         }
 
         builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
 
-        builder.Services.AddControllerServices()
-            .AddHealthCheckServices()
-            .AddMemoryCache()
-            .AddIdentityServices()
-            .AddRateLimiterServices(builder.Configuration)
-            .AddCoreServices()
-            .AddEmailServices(builder.Configuration)
-            .AddAuthenticationServices(builder.Configuration)
-            .AddDatabaseServices(builder.Configuration)
-            .AddRepositoryServices()
-            .AddDomainServices()
-            .AddOpenApiServices(builder.Configuration)
-            .AddCors()
-            .AddHttpClient();
+        var startup = new Startup(builder.Configuration);
+        startup.ConfigureServices(builder.Services);
 
         var app = builder.Build();
+        startup.Configure(app, app.Environment);
 
         using (var scope = app.Services.CreateScope())
         {
@@ -108,70 +88,6 @@ public static class Program
             }
         }
 
-        // Configure the HTTP request pipeline.
-        if (app.Environment.IsDevelopment())
-        {
-            app.UseDeveloperExceptionPage();
-        }
-
-        app.UseGlobalExceptionHandlerMiddleware()
-            .UseRouting()
-            .UseHsts()
-            .UseHttpsRedirection()
-            .UseCorrelationIdMiddleware()
-            .UseForwardedHeaders(BuildForwardedHeadersOptions(builder.Configuration))
-            .UseMiddleware<PathBaseRewriterMiddleware>()
-            .UseAndConfigureCors(builder.Configuration)
-            .UseAuthentication()
-            .UseAuthorization()
-            .UseMiddleware<LoggingScopeMiddleware>() // Ensure this is after UseAuthentication and UseAuthorization to capture user information.
-            .UseRateLimiter(); // Ensure this is after UseAuthentication and UseAuthorization to apply rate limiting based on user identity.
-
-        app.UseAndConfigureOpenApi(builder.Configuration)
-            .UseAndConfigureEndpoints(builder.Configuration);
-
         await app.RunAsync();
-    }
-
-    // ForwardedHeaders middleware rewrites Connection.RemoteIpAddress, Request.Scheme, and
-    // Request.Host based on X-Forwarded-* headers, but only when the immediate connection comes
-    // from a trusted proxy. We pin the trust list to loopback by default (the API sits behind an
-    // on-host nginx in production) and allow ops to extend it via configuration without redeploys.
-    // Without this, malicious clients could spoof their source IP for the rate limiter and any
-    // other middleware that reads RemoteIpAddress.
-    private static ForwardedHeadersOptions BuildForwardedHeadersOptions(ConfigurationManager configuration)
-    {
-        var settings = configuration.GetSection(ConfigurationKeys.ForwardedHeaders).Get<ForwardedHeadersSettings>() ?? new ForwardedHeadersSettings();
-
-        var options = new ForwardedHeadersOptions
-        {
-            ForwardedHeaders = ForwardedHeaders.All,
-            ForwardLimit = settings.ForwardLimit
-        };
-
-        // Replace the framework defaults with an explicit, documented trust list. Loopback is
-        // always included so the on-host nginx reverse proxy keeps working.
-        options.KnownProxies.Clear();
-        options.KnownIPNetworks.Clear();
-        options.KnownIPNetworks.Add(new IPNetwork(IPAddress.Parse("127.0.0.0"), 8));
-        options.KnownIPNetworks.Add(new IPNetwork(IPAddress.IPv6Loopback, 128));
-
-        foreach (var proxy in settings.KnownProxies)
-        {
-            if (IPAddress.TryParse(proxy, out var address))
-            {
-                options.KnownProxies.Add(address);
-            }
-        }
-
-        foreach (var network in settings.KnownNetworks)
-        {
-            if (IPNetwork.TryParse(network, out var ipNetwork))
-            {
-                options.KnownIPNetworks.Add(ipNetwork);
-            }
-        }
-
-        return options;
     }
 }
