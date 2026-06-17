@@ -1,20 +1,17 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { Card, CardContent, CardHeader, Button, Chip, Spinner } from '@heroui/react';
-import { ApiErrorDisplay } from '../components/ApiErrorDisplay';
 import { FormField } from '../components/FormField';
 import { authApi } from '../services/auth';
 
 export function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
-  const [error, setError] = useState<Error | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
     setIsLoading(true);
 
     try {
@@ -68,8 +65,6 @@ export function ForgotPasswordPage() {
 
         <CardContent className="px-8 pb-8">
           <form onSubmit={handleSubmit} className="space-y-6">
-            {error && <ApiErrorDisplay error={error} title="Reset Request Failed" showDetails={true} />}
-
             <FormField
               label="Email Address"
               type="email"

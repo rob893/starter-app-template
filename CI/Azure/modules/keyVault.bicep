@@ -10,7 +10,10 @@ param location string
 @description('Tags to apply to the resource.')
 param tags object = {}
 
-var vaultName = '${namePrefix}-kv-${environment}'
+// KV names must be 3–24 chars, start with a letter, alphanumeric/hyphen, no trailing hyphen.
+// Cap the composed name at 24 chars, then strip a trailing hyphen so truncation stays valid.
+var rawVaultName = take('${namePrefix}-kv-${environment}', 24)
+var vaultName = endsWith(rawVaultName, '-') ? take(rawVaultName, 23) : rawVaultName
 
 resource vault 'Microsoft.KeyVault/vaults@2023-07-01' = {
   name: vaultName
