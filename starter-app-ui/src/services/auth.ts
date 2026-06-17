@@ -1,5 +1,12 @@
-import apiClient from './axiosConfig';
-import type { LoginRequest, RegisterRequest, LoginResponse, RefreshTokenResponse } from '../types/auth';
+import apiClient, { refreshAccessToken } from './axiosConfig';
+import type {
+  LoginRequest,
+  RegisterRequest,
+  LoginResponse,
+  RefreshTokenResponse,
+  ForgotPasswordRequest,
+  ResetPasswordRequest
+} from '../types/auth';
 
 const STORAGE_KEYS = {
   DEVICE_ID: 'device_id'
@@ -89,12 +96,20 @@ export const authApi = {
   },
 
   async refreshToken(): Promise<RefreshTokenResponse> {
-    const deviceId = getDeviceId();
-    const response = await apiClient.post<RefreshTokenResponse>('/api/v1/auth/refreshToken', {
-      deviceId
-    });
+    const refreshed = await refreshAccessToken();
 
-    setAccessToken(response.data.token);
-    return response.data;
+    if (!refreshed) {
+      throw new Error('Token refresh failed');
+    }
+
+    return { token: getAccessToken()! };
+  },
+
+  async forgotPassword(request: ForgotPasswordRequest): Promise<void> {
+    await apiClient.post('/api/v1/users/forgotPassword', request);
+  },
+
+  async resetPassword(request: ResetPasswordRequest): Promise<void> {
+    await apiClient.post('/api/v1/users/resetPassword', request);
   }
 };

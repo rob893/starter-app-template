@@ -111,7 +111,7 @@ apiClient.interceptors.response.use(
         isRefreshing = true;
 
         try {
-          const refreshed = await refreshToken();
+          const refreshed = await refreshAccessToken();
 
           if (refreshed) {
             const newToken = getAccessToken();
@@ -147,7 +147,17 @@ apiClient.interceptors.response.use(
   }
 );
 
-async function refreshToken(): Promise<boolean> {
+/**
+ * Single source of truth for refreshing the access token.
+ *
+ * Uses a bare `axios` call (NOT `apiClient`) so it can be invoked from the
+ * response interceptor without re-entering that interceptor and risking an
+ * infinite 401 → refresh loop. Reads the CSRF token from the cookie, sends the
+ * device id, persists the new access token, and reports success as a boolean.
+ *
+ * @returns `true` if a new access token was obtained and stored, otherwise `false`.
+ */
+export async function refreshAccessToken(): Promise<boolean> {
   try {
     const deviceId = getDeviceId();
     const csrfToken = getCsrfTokenFromCookie();

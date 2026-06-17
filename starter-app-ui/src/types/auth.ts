@@ -37,6 +37,16 @@ export interface RefreshTokenResponse {
   token: string;
 }
 
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ResetPasswordRequest {
+  email: string;
+  token: string;
+  password: string;
+}
+
 export interface AuthState {
   user: User | null;
   isAuthenticated: boolean;

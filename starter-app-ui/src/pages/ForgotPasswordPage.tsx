@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router';
 import { Card, CardContent, CardHeader, Button, Chip, Spinner } from '@heroui/react';
 import { ApiErrorDisplay } from '../components/ApiErrorDisplay';
 import { FormField } from '../components/FormField';
+import { authApi } from '../services/auth';
 
 export function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -17,13 +18,9 @@ export function ForgotPasswordPage() {
     setIsLoading(true);
 
     try {
-      await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v1/auth/forgot-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
-      });
+      await authApi.forgotPassword({ email });
     } catch {
-      // Always show success per security best practices
+      // Always show success per security best practices (avoid account enumeration)
     } finally {
       setIsLoading(false);
       setIsSubmitted(true);

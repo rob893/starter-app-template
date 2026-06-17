@@ -17,6 +17,7 @@ using StarterApp.API.Services.Email;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using static StarterApp.API.Utilities.UtilityFunctions;
@@ -40,6 +41,8 @@ public sealed class AuthController : ServiceControllerBase
 
     private readonly AuthenticationSettings authSettings;
 
+    private readonly ILogger<AuthController> logger;
+
     public AuthController(
         IUserRepository userRepository,
         IJwtTokenService jwtTokenService,
@@ -47,7 +50,8 @@ public sealed class AuthController : ServiceControllerBase
         IGitHubOAuthService gitHubOAuthService,
         IGoogleOAuthService googleOAuthService,
         IOptions<AuthenticationSettings> authSettings,
-        ICorrelationIdService correlationIdService)
+        ICorrelationIdService correlationIdService,
+        ILogger<AuthController> logger)
             : base(correlationIdService)
     {
         this.userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
@@ -56,6 +60,7 @@ public sealed class AuthController : ServiceControllerBase
         this.gitHubOAuthService = gitHubOAuthService ?? throw new ArgumentNullException(nameof(gitHubOAuthService));
         this.googleOAuthService = googleOAuthService ?? throw new ArgumentNullException(nameof(googleOAuthService));
         this.authSettings = authSettings?.Value ?? throw new ArgumentNullException(nameof(authSettings));
+        this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     /// <summary>
@@ -261,8 +266,9 @@ public sealed class AuthController : ServiceControllerBase
         {
             return this.Unauthorized("Unable to validate Google authorization code.");
         }
-        catch
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            this.logger.LogError(ex, "Unexpected error during Google login.");
             return this.InternalServerError("Unable to login with Google.");
         }
     }
@@ -381,8 +387,9 @@ public sealed class AuthController : ServiceControllerBase
         {
             return this.Unauthorized("Unable to validate GitHub token.");
         }
-        catch
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            this.logger.LogError(ex, "Unexpected error during GitHub login.");
             return this.InternalServerError("Unable to login with GitHub.");
         }
     }

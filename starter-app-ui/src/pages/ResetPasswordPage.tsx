@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams, Link } from 'react-router';
 import { Card, CardContent, CardHeader, Button, Chip, Spinner } from '@heroui/react';
 import { ApiErrorDisplay } from '../components/ApiErrorDisplay';
 import { FormField } from '../components/FormField';
+import { authApi } from '../services/auth';
 import {
   validatePassword,
   getPasswordRequirementsDescription,
@@ -54,13 +55,7 @@ export function ResetPasswordPage() {
     setIsLoading(true);
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v1/auth/reset-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, token, password })
-      });
-
-      if (!response.ok) throw new Error('Reset failed');
+      await authApi.resetPassword({ email, token, password });
 
       setIsSubmitted(true);
     } catch {
