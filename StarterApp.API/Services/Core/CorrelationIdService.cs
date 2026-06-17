@@ -1,20 +1,26 @@
 using System;
+using System.Threading;
 
 namespace StarterApp.API.Services.Core;
 
 public sealed class CorrelationIdService : ICorrelationIdService
 {
-    private string? correlationId;
+    private static readonly AsyncLocal<string?> current = new();
 
     public string CorrelationId
     {
         get
         {
-            this.correlationId ??= Guid.NewGuid().ToString();
+            var id = current.Value;
+            if (id is null)
+            {
+                id = Guid.NewGuid().ToString();
+                current.Value = id;
+            }
 
-            return this.correlationId;
+            return id;
         }
 
-        set => this.correlationId = value;
+        set => current.Value = value;
     }
 }

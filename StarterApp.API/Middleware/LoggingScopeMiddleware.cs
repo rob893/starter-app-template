@@ -1,10 +1,9 @@
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
-using StarterApp.API.Extensions;
-using StarterApp.API.Services.Core;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using StarterApp.API.Services.Core;
+using StarterApp.API.Utilities;
 
 namespace StarterApp.API.Middleware;
 
@@ -28,15 +27,7 @@ public sealed class LoggingScopeMiddleware
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(correlationIdService);
 
-        var scope = new Dictionary<string, object>
-        {
-            ["CorrelationId"] = correlationIdService.CorrelationId
-        };
-
-        if (context.User.TryGetUserId(out var userId) && userId != null)
-        {
-            scope["UserId"] = userId;
-        }
+        var scope = RequestLoggingScope.Build(context, correlationIdService.CorrelationId);
 
         using (this.logger.BeginScope(scope))
         {

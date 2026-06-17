@@ -1,11 +1,10 @@
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Moq;
 using StarterApp.API.Controllers.V1;
 using StarterApp.API.Models.Responses;
 using StarterApp.API.Services.Auth;
 using StarterApp.API.Services.Core;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Moq;
-using Xunit;
 
 namespace StarterApp.API.Tests.Controllers;
 

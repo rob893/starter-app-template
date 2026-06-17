@@ -1,31 +1,11 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 
 namespace StarterApp.API.Utilities;
 
 public static class UtilityFunctions
 {
-    public static string GetSourceName(
-        [CallerFilePath]
-            string sourceFilePath = "",
-        [CallerMemberName]
-            string memberName = "")
-    {
-        var sourceName = string.Empty;
-        if (!string.IsNullOrWhiteSpace(sourceFilePath))
-        {
-            sourceName = sourceFilePath.Contains('\\', StringComparison.Ordinal)
-                ? sourceFilePath.Split('\\').Last().Split('.').First()
-                : sourceFilePath.Split('/').Last().Split('.').First();
-        }
-
-        return $"{sourceName}.{memberName}";
-    }
-
     public static string GetControllerName<T>()
     {
         var typeName = typeof(T).Name;
@@ -37,30 +17,6 @@ public static class UtilityFunctions
         }
 
         return typeName.Split(splitOn).First();
-    }
-
-    public static string GetStringBetween(string source, string start, string end)
-    {
-        ArgumentNullException.ThrowIfNull(source);
-        ArgumentNullException.ThrowIfNull(start);
-        ArgumentNullException.ThrowIfNull(end);
-
-        int startIndex = source.IndexOf(start, StringComparison.Ordinal);
-        if (startIndex == -1)
-        {
-            return string.Empty;
-        }
-
-        startIndex += start.Length;
-
-        int endIndex = source.IndexOf(end, startIndex, StringComparison.Ordinal);
-
-        if (endIndex == -1)
-        {
-            return string.Empty;
-        }
-
-        return source[startIndex..endIndex];
     }
 
     public static LogLevel LogLevelFromString(string logLevel)
@@ -77,41 +33,5 @@ public static class UtilityFunctions
             "CRITICAL" => LogLevel.Critical,
             _ => throw new ArgumentException($"{nameof(logLevel)} must be Trace, Debug, Information, Warning, Error, or Critical.", nameof(logLevel)),
         };
-    }
-
-    public static bool AreListsEqual<T>(IReadOnlyList<T> list1, IReadOnlyList<T> list2)
-    {
-        ArgumentNullException.ThrowIfNull(list1);
-        ArgumentNullException.ThrowIfNull(list2);
-
-        if (list1.Count != list2.Count)
-        {
-            return false;
-        }
-
-        // For List<object>, use JSON serialization to compare values as this handles
-        // type differences between deserialized JSON and database objects
-        if (typeof(T) == typeof(object))
-        {
-            var options = new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-            };
-
-            var json1 = JsonSerializer.Serialize(list1, options);
-            var json2 = JsonSerializer.Serialize(list2, options);
-            return json1 == json2;
-        }
-
-        // For other types, use regular equality comparison
-        for (int i = 0; i < list1.Count; i++)
-        {
-            if (!Equals(list1[i], list2[i]))
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
 }

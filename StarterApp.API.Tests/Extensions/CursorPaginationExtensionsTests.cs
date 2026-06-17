@@ -1,9 +1,7 @@
 using System.Collections.Generic;
-using StarterApp.API.Core;
 using StarterApp.API.Extensions;
 using StarterApp.API.Models;
 using StarterApp.API.Models.QueryParameters;
-using Xunit;
 
 namespace StarterApp.API.Tests.Extensions;
 

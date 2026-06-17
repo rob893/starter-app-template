@@ -1,13 +1,16 @@
 using System;
-using System.Diagnostics;
 using System.Linq;
 using System.Net;
-using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Azure.Identity;
-using Azure.Monitor.OpenTelemetry.AspNetCore;
 using CommandLine;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using StarterApp.API.ApplicationStartup.ApplicationBuilderExtensions;
 using StarterApp.API.ApplicationStartup.ServiceCollectionExtensions;
 using StarterApp.API.Constants;
@@ -16,13 +19,6 @@ using StarterApp.API.Data;
 using StarterApp.API.Extensions;
 using StarterApp.API.Middleware;
 using StarterApp.API.Models.Settings;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.HttpOverrides;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-using OpenTelemetry.Resources;
 using IPNetwork = System.Net.IPNetwork;
 
 namespace StarterApp.API;
@@ -46,24 +42,7 @@ public static class Program
         {
             builder.Configuration.AddAzureKeyVault(new Uri(keyVaultUrl), new DefaultAzureCredential(), new PrefixKeyVaultSecretManager(["StarterApp", "All"]));
 
-            var appInsightsConnectionString = builder.Configuration[ConfigurationKeys.ApplicationInsightsConnectionString] ?? throw new InvalidOperationException("ApplicationInsightsConnectionString not found in configuration.");
-
-            var productName = FileVersionInfo.GetVersionInfo(Assembly.GetExecutingAssembly().Location).ProductName;
-            var environment = builder.Configuration.GetEnvironment();
-            var version = Assembly.GetExecutingAssembly().GetName().Version;
-
-            builder.Logging.AddOpenTelemetry(options =>
-            {
-                options.IncludeScopes = true;
-            });
-            builder.Services.AddOpenTelemetry()
-                .ConfigureResource(resource => resource.AddService(serviceName: $"{productName}-{environment}-{version}"))
-                .UseAzureMonitor(options =>
-                {
-                    options.ConnectionString = appInsightsConnectionString;
-                    options.Credential = new DefaultAzureCredential();
-                    options.SamplingRatio = 1f;
-                });
+            builder.Services.AddAppInsightsServices(builder.Configuration);
         }
 
         builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
@@ -135,11 +114,11 @@ public static class Program
             app.UseDeveloperExceptionPage();
         }
 
-        app.UseExceptionHandler(x => x.UseMiddleware<GlobalExceptionHandlerMiddleware>())
+        app.UseGlobalExceptionHandlerMiddleware()
             .UseRouting()
             .UseHsts()
             .UseHttpsRedirection()
-            .UseMiddleware<CorrelationIdMiddleware>()
+            .UseCorrelationIdMiddleware()
             .UseForwardedHeaders(BuildForwardedHeadersOptions(builder.Configuration))
             .UseMiddleware<PathBaseRewriterMiddleware>()
             .UseAndConfigureCors(builder.Configuration)

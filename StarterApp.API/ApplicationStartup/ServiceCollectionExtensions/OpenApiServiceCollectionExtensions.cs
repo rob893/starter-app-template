@@ -4,15 +4,15 @@ using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
-using StarterApp.API.Constants;
-using StarterApp.API.Extensions;
-using StarterApp.API.Models.Settings;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.OpenApi;
 using Scalar.AspNetCore;
+using StarterApp.API.Constants;
+using StarterApp.API.Extensions;
+using StarterApp.API.Models.Settings;
 
 namespace StarterApp.API.ApplicationStartup.ServiceCollectionExtensions;
 
@@ -28,9 +28,11 @@ public static class OpenApiServiceCollectionExtensions
 
         services.Configure<OpenApiSettings>(settingsSection);
 
-        var productName = FileVersionInfo.GetVersionInfo(Assembly.GetExecutingAssembly().Location).ProductName;
+        var entryAssembly = Assembly.GetEntryAssembly() ?? Assembly.GetCallingAssembly();
+        var productName = FileVersionInfo.GetVersionInfo(entryAssembly?.Location ?? Assembly.GetExecutingAssembly().Location).ProductName ?? "Unknown product";
         var environment = config.GetEnvironment();
-        var version = Assembly.GetExecutingAssembly().GetName().Version;
+        var assemblyVersion = entryAssembly?.GetName().Version ?? new Version(0, 0, 0, 0);
+        var buildVersion = FileVersionInfo.GetVersionInfo(entryAssembly?.Location ?? Assembly.GetExecutingAssembly().Location).ProductVersion ?? "Unknown build";
 
         foreach (var apiVersion in settings.SupportedApiVersions)
         {
@@ -45,7 +47,7 @@ public static class OpenApiServiceCollectionExtensions
                     {
                         Version = apiVersion,
                         Title = productName,
-                        Description = $"{productName} - {environment} ({version})"
+                        Description = $"{productName} - {environment} ({assemblyVersion} - Build {buildVersion})"
                     };
 
                     return Task.CompletedTask;

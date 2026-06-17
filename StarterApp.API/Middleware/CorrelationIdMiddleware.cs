@@ -1,12 +1,10 @@
 using System;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 using StarterApp.API.Constants;
 using StarterApp.API.Extensions;
 using StarterApp.API.Services.Core;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Logging;
-
-using static StarterApp.API.Utilities.UtilityFunctions;
 
 namespace StarterApp.API.Middleware;
 
@@ -30,17 +28,15 @@ public sealed class CorrelationIdMiddleware
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(correlationIdService);
 
-        var sourceName = GetSourceName();
-
         if (!context.Request.Headers.TryGetCorrelationId(out var correlationId))
         {
             correlationId = Guid.NewGuid().ToString();
             context.Request.Headers[AppHeaderNames.CorrelationId] = correlationId;
-            this.logger.LogDebug("[{SourceName}] No correlation id found in request headers. Generating a new one. It will be added to the response headers.", sourceName);
+            this.logger.LogDebug("No correlation id found in request headers. Generating a new one. It will be added to the response headers.");
         }
         else
         {
-            this.logger.LogDebug("[{SourceName}] Correlation id found in request headers. It will be added to the response headers.", sourceName);
+            this.logger.LogDebug("Correlation id found in request headers. It will be added to the response headers.");
         }
 
         correlationIdService.CorrelationId = correlationId;
@@ -50,13 +46,13 @@ public sealed class CorrelationIdMiddleware
             // Remove previous correlation id as passed correlation id always takes priority.
             if (context.Response.Headers.TryGetCorrelationId(out var currentCorrelationId))
             {
-                this.logger.LogDebug("[{SourceName}] Correlation id of {CorId} has already been added to response headers. Removing in favor of correlation id from client.", sourceName, currentCorrelationId);
+                this.logger.LogDebug("Correlation id of {CorId} has already been added to response headers. Removing in favor of correlation id from client.", currentCorrelationId);
                 context.Response.Headers.Remove(AppHeaderNames.CorrelationId);
             }
 
             context.Response.Headers[AppHeaderNames.CorrelationId] = correlationId;
 
-            this.logger.LogDebug("[{SourceName}] Correlation id added to the response headers.", sourceName);
+            this.logger.LogDebug("Correlation id added to the response headers.");
 
             return Task.CompletedTask;
         });

@@ -1,11 +1,9 @@
-using System.Collections.Generic;
-using StarterApp.API.Controllers;
-using StarterApp.API.Core;
-using StarterApp.API.Services.Core;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
-using Xunit;
+using StarterApp.API.Controllers;
+using StarterApp.API.Core;
+using StarterApp.API.Services.Core;
 
 namespace StarterApp.API.Tests.Controllers;
 

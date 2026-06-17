@@ -1,19 +1,14 @@
 using System;
-using System.Collections.Generic;
-using System.Linq.Expressions;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using StarterApp.API.Core;
 using StarterApp.API.Data.Repositories;
-using StarterApp.API.Models.Dtos;
 using StarterApp.API.Models.Entities;
-using StarterApp.API.Models.QueryParameters;
 using StarterApp.API.Models.Requests;
 using StarterApp.API.Services.Auth;
 using StarterApp.API.Services.Domain;
-using Microsoft.Extensions.Logging.Abstractions;
-using Moq;
-using Xunit;
 
 namespace StarterApp.API.Tests.Services;
 

@@ -1,19 +1,19 @@
 using System;
 using System.Diagnostics;
 using System.Reflection;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.Configuration;
+using Scalar.AspNetCore;
 using StarterApp.API.Constants;
 using StarterApp.API.Extensions;
 using StarterApp.API.Middleware;
 using StarterApp.API.Models.Settings;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.Extensions.Configuration;
-using Scalar.AspNetCore;
 
 namespace StarterApp.API.ApplicationStartup.ApplicationBuilderExtensions;
 
 public static class OpenApiApplicationBuilderExtensions
 {
-    public static WebApplication UseAndConfigureOpenApi(this WebApplication app, IConfiguration config)
+    public static WebApplication UseAndConfigureOpenApi(this WebApplication app, IConfiguration config, Action<ScalarOptions>? configureScalar = null)
     {
         ArgumentNullException.ThrowIfNull(app);
         ArgumentNullException.ThrowIfNull(config);
@@ -28,7 +28,10 @@ public static class OpenApiApplicationBuilderExtensions
         }
 
         var openApiSettings = config.GetSection(ConfigurationKeys.OpenApi).Get<OpenApiSettings>();
-        var productName = FileVersionInfo.GetVersionInfo(Assembly.GetExecutingAssembly().Location).ProductName;
+        var entryAssembly = Assembly.GetEntryAssembly() ?? Assembly.GetCallingAssembly();
+        var assemblyVersion = entryAssembly?.GetName().Version ?? new Version(0, 0, 0, 0);
+        var buildVersion = FileVersionInfo.GetVersionInfo(entryAssembly?.Location ?? Assembly.GetExecutingAssembly().Location).ProductVersion ?? "Unknown build";
+        var productName = FileVersionInfo.GetVersionInfo(entryAssembly?.Location ?? Assembly.GetExecutingAssembly().Location).ProductName ?? "Unknown product";
         var environment = config.GetEnvironment();
 
         // Apply basic auth middleware for protecting the OpenAPI/Scalar endpoints
@@ -37,10 +40,15 @@ public static class OpenApiApplicationBuilderExtensions
         app.MapOpenApi();
         app.MapScalarApiReference(options =>
         {
-            options.WithTitle($"{productName} - {environment}")
+            options.WithTitle($"{productName} - {environment} ({assemblyVersion} - Build {buildVersion})")
                 .WithTheme(ScalarTheme.BluePlanet)
                 .WithOperationTitleSource(OperationTitleSource.Path)
                 .AddPreferredSecuritySchemes("Bearer");
+
+            if (configureScalar is not null)
+            {
+                configureScalar(options);
+            }
         });
 
         return app;

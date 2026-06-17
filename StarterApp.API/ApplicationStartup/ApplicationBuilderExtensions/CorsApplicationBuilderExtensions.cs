@@ -1,19 +1,21 @@
 using System;
-using StarterApp.API.Constants;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
+using StarterApp.API.Constants;
 
 namespace StarterApp.API.ApplicationStartup.ApplicationBuilderExtensions;
 
 public static class CorsApplicationBuilderExtensions
 {
+    private static readonly string[] defaultOrigins = ["*"];
+
     public static IApplicationBuilder UseAndConfigureCors(this IApplicationBuilder app, IConfiguration config)
     {
         ArgumentNullException.ThrowIfNull(app);
         ArgumentNullException.ThrowIfNull(config);
 
         app.UseCors(header =>
-            header.WithOrigins(config.GetSection(ConfigurationKeys.CorsAllowedOrigins).Get<string[]>() ?? ["*"])
+            header.WithOrigins(config.GetSection(ConfigurationKeys.CorsAllowedOrigins).Get<string[]>() ?? defaultOrigins)
                 .AllowAnyMethod()
                 .AllowAnyHeader()
                 .AllowCredentials()
