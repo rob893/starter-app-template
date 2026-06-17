@@ -30,6 +30,7 @@ public static class AuthenticationServiceCollectionExtensions
         services.AddScoped<IJwtTokenService, JwtTokenService>();
         services.AddScoped<IGitHubOAuthService, GitHubOAuthService>();
         services.AddScoped<IGoogleOAuthService, GoogleOAuthService>();
+        services.AddScoped<IExternalLoginService, ExternalLoginService>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
 
         services.Configure<AuthenticationSettings>(config.GetSection(ConfigurationKeys.Authentication));

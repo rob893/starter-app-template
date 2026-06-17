@@ -378,14 +378,22 @@ public sealed class UserService : IUserService
             return Result<bool>.Failure(DomainErrorType.Validation, "You can only resend the email confirmation link once per hour");
         }
 
+        await this.SendEmailConfirmationAsync(user, cancellationToken);
+
+        return Result<bool>.Success(true);
+    }
+
+    /// <inheritdoc />
+    public async Task SendEmailConfirmationAsync(User user, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(user);
+
         var token = await this.userRepository.UserManager.GenerateEmailConfirmationTokenAsync(user);
 
         await this.emailService.SendEmailConfirmationToUserAsync(user, token, cancellationToken);
 
         user.LastEmailConfirmationSent = DateTimeOffset.UtcNow;
         await this.userRepository.SaveChangesAsync(cancellationToken);
-
-        return Result<bool>.Success(true);
     }
 
     /// <inheritdoc />

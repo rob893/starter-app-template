@@ -99,6 +99,16 @@ public interface IUserService
     Task<Result<bool>> SendEmailConfirmationAsync(int userId, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Sends an email confirmation link to the supplied user, performing only the core
+    /// token generation, delivery, and timestamp persistence. Callers are responsible for
+    /// any authorization, throttling, or validation preconditions.
+    /// </summary>
+    /// <param name="user">The user to send the confirmation link to</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>A task representing the asynchronous operation</returns>
+    Task SendEmailConfirmationAsync(User user, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Sends a password reset link to the user's email
     /// </summary>
     /// <param name="request">The forgot password request</param>

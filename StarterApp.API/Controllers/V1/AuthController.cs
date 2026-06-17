@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using StarterApp.API.Constants;
 using StarterApp.API.Data.Repositories;
 using StarterApp.API.Extensions;
+using StarterApp.API.Models.Auth;
 using StarterApp.API.Models.Dtos;
 using StarterApp.API.Models.Entities;
 using StarterApp.API.Models.Requests.Auth;
@@ -14,7 +15,7 @@ using StarterApp.API.Models.Responses.Auth;
 using StarterApp.API.Models.Settings;
 using StarterApp.API.Services.Auth;
 using StarterApp.API.Services.Core;
-using StarterApp.API.Services.Email;
+using StarterApp.API.Services.Domain;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -34,11 +35,13 @@ public sealed class AuthController : ServiceControllerBase
 
     private readonly IJwtTokenService jwtTokenService;
 
-    private readonly IEmailService emailService;
+    private readonly IUserService userService;
 
     private readonly IGitHubOAuthService gitHubOAuthService;
 
     private readonly IGoogleOAuthService googleOAuthService;
+
+    private readonly IExternalLoginService externalLoginService;
 
     private readonly AuthenticationSettings authSettings;
 
@@ -47,9 +50,10 @@ public sealed class AuthController : ServiceControllerBase
     public AuthController(
         IUserRepository userRepository,
         IJwtTokenService jwtTokenService,
-        IEmailService emailService,
+        IUserService userService,
         IGitHubOAuthService gitHubOAuthService,
         IGoogleOAuthService googleOAuthService,
+        IExternalLoginService externalLoginService,
         IOptions<AuthenticationSettings> authSettings,
         ICorrelationIdService correlationIdService,
         ILogger<AuthController> logger)
@@ -57,9 +61,10 @@ public sealed class AuthController : ServiceControllerBase
     {
         this.userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
         this.jwtTokenService = jwtTokenService ?? throw new ArgumentNullException(nameof(jwtTokenService));
-        this.emailService = emailService ?? throw new ArgumentNullException(nameof(emailService));
+        this.userService = userService ?? throw new ArgumentNullException(nameof(userService));
         this.gitHubOAuthService = gitHubOAuthService ?? throw new ArgumentNullException(nameof(gitHubOAuthService));
         this.googleOAuthService = googleOAuthService ?? throw new ArgumentNullException(nameof(googleOAuthService));
+        this.externalLoginService = externalLoginService ?? throw new ArgumentNullException(nameof(externalLoginService));
         this.authSettings = authSettings?.Value ?? throw new ArgumentNullException(nameof(authSettings));
         this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -95,7 +100,7 @@ public sealed class AuthController : ServiceControllerBase
 
         var token = await this.GenerateAndSaveAccessAndRefreshTokensAsync(user, registerUserRequest.DeviceId, cancellationToken);
 
-        await this.SendConfirmEmailLink(user, cancellationToken);
+        await this.userService.SendEmailConfirmationAsync(user, cancellationToken);
 
         var userToReturn = UserDto.FromEntity(user);
 
@@ -193,68 +198,23 @@ public sealed class AuthController : ServiceControllerBase
 
             var validatedToken = await this.googleOAuthService.ValidateIdTokenAsync(idToken, cancellationToken);
 
-            var user = await this.userRepository.GetByLinkedAccountAsync(validatedToken.Subject, LinkedAccountType.Google, [user => user.RefreshTokens], cancellationToken);
-
-            if (user == null)
+            var identity = new ExternalLoginIdentity
             {
-                // Try to find user by email if no linked account exists
-                if (!string.IsNullOrWhiteSpace(validatedToken.Email))
-                {
-                    user = await this.userRepository.GetByEmailAsync(validatedToken.Email, [user => user.RefreshTokens], cancellationToken);
-                }
+                ProviderSubjectId = validatedToken.Subject,
+                ProviderType = LinkedAccountType.Google,
+                Email = validatedToken.Email,
+                EmailVerified = validatedToken.EmailVerified,
+                SuggestedUserName = validatedToken.Email?.Split('@').FirstOrDefault() ?? validatedToken.Subject
+            };
 
-                if (user != null)
-                {
-                    // Link the Google account to the existing user
-                    user.LinkedAccounts.Add(new LinkedAccount
-                    {
-                        Id = validatedToken.Subject,
-                        LinkedAccountType = LinkedAccountType.Google
-                    });
+            var result = await this.externalLoginService.ResolveOrProvisionUserAsync(identity, cancellationToken);
 
-                    user.EmailConfirmed = user.EmailConfirmed || validatedToken.EmailVerified;
-
-                    var updated = await this.userRepository.SaveChangesAsync(cancellationToken);
-
-                    if (updated == 0)
-                    {
-                        return this.InternalServerError("Unable to link Google account to existing user.");
-                    }
-                }
-                else
-                {
-                    // Create a new user with Google account
-                    var newUser = new User
-                    {
-                        UserName = validatedToken.Email?.Split('@').FirstOrDefault() ?? validatedToken.Subject,
-                        Email = validatedToken.Email,
-                        EmailConfirmed = validatedToken.EmailVerified,
-                        LinkedAccounts =
-                        [
-                            new LinkedAccount
-                            {
-                                Id = validatedToken.Subject,
-                                LinkedAccountType = LinkedAccountType.Google
-                            }
-                        ]
-                    };
-
-                    var createResult = await this.userRepository.CreateUserWithoutPasswordAsync(newUser, cancellationToken);
-
-                    if (!createResult.Succeeded)
-                    {
-                        return this.BadRequest([.. createResult.Errors.Select(e => e.Description)]);
-                    }
-
-                    user = newUser;
-
-                    // Optionally send confirmation email if email is not confirmed
-                    if (!newUser.EmailConfirmed && !string.IsNullOrWhiteSpace(newUser.Email))
-                    {
-                        await this.SendConfirmEmailLink(newUser, cancellationToken);
-                    }
-                }
+            if (!result.IsSuccess)
+            {
+                return this.HandleServiceFailureResult(result);
             }
+
+            var user = result.ValueOrThrow;
 
             var token = await this.GenerateAndSaveAccessAndRefreshTokensAsync(user, loginRequest.DeviceId, cancellationToken);
             var userToReturn = UserDto.FromEntity(user);
@@ -314,69 +274,27 @@ public sealed class AuthController : ServiceControllerBase
                 return this.Unauthorized("Unable to retrieve GitHub user information.");
             }
 
-            var user = await this.userRepository.GetByLinkedAccountAsync(gitHubUserInfo.Id.ToString(CultureInfo.InvariantCulture), LinkedAccountType.GitHub, [user => user.RefreshTokens], cancellationToken);
+            var gitHubEmail = string.IsNullOrWhiteSpace(gitHubUserInfo.Email)
+                ? (await this.gitHubOAuthService.GetGitHubEmailsAsync(githubToken, cancellationToken)).FirstOrDefault(e => e.Primary && e.Verified)?.Email
+                : gitHubUserInfo.Email;
 
-            if (user == null)
+            var identity = new ExternalLoginIdentity
             {
-                var gitHubEmail = string.IsNullOrWhiteSpace(gitHubUserInfo.Email)
-                    ? (await this.gitHubOAuthService.GetGitHubEmailsAsync(githubToken, cancellationToken)).FirstOrDefault(e => e.Primary && e.Verified)?.Email
-                    : gitHubUserInfo.Email;
+                ProviderSubjectId = gitHubUserInfo.Id.ToString(CultureInfo.InvariantCulture),
+                ProviderType = LinkedAccountType.GitHub,
+                Email = gitHubEmail,
+                EmailVerified = !string.IsNullOrEmpty(gitHubEmail),
+                SuggestedUserName = gitHubUserInfo.Login
+            };
 
-                if (!string.IsNullOrWhiteSpace(gitHubEmail))
-                {
-                    user = await this.userRepository.GetByEmailAsync(gitHubEmail, [user => user.RefreshTokens], cancellationToken);
-                }
+            var result = await this.externalLoginService.ResolveOrProvisionUserAsync(identity, cancellationToken);
 
-                if (user != null)
-                {
-                    user.LinkedAccounts.Add(new LinkedAccount
-                    {
-                        Id = gitHubUserInfo.Id.ToString(CultureInfo.InvariantCulture),
-                        LinkedAccountType = LinkedAccountType.GitHub
-                    });
-
-                    user.EmailConfirmed = user.EmailConfirmed || !string.IsNullOrEmpty(gitHubEmail);
-
-                    var updated = await this.userRepository.SaveChangesAsync(cancellationToken);
-
-                    if (updated == 0)
-                    {
-                        return this.InternalServerError("Unable to link GitHub account to existing user.");
-                    }
-                }
-                else
-                {
-                    var newUser = new User
-                    {
-                        UserName = gitHubUserInfo.Login,
-                        Email = gitHubEmail,
-                        EmailConfirmed = !string.IsNullOrEmpty(gitHubEmail),
-                        LinkedAccounts =
-                    [
-                        new LinkedAccount
-                        {
-                            Id = gitHubUserInfo.Id.ToString(CultureInfo.InvariantCulture),
-                            LinkedAccountType = LinkedAccountType.GitHub
-                        }
-                    ]
-                    };
-
-                    var createResult = await this.userRepository.CreateUserWithoutPasswordAsync(newUser, cancellationToken);
-
-                    if (!createResult.Succeeded)
-                    {
-                        return this.BadRequest([.. createResult.Errors.Select(e => e.Description)]);
-                    }
-
-                    user = newUser;
-
-                    // Optionally send confirmation email if email is not confirmed
-                    if (!newUser.EmailConfirmed && !string.IsNullOrWhiteSpace(newUser.Email))
-                    {
-                        await this.SendConfirmEmailLink(newUser, cancellationToken);
-                    }
-                }
+            if (!result.IsSuccess)
+            {
+                return this.HandleServiceFailureResult(result);
             }
+
+            var user = result.ValueOrThrow;
 
             var token = await this.GenerateAndSaveAccessAndRefreshTokensAsync(user, loginRequest.DeviceId, cancellationToken);
             var userToReturn = UserDto.FromEntity(user);
@@ -586,19 +504,5 @@ public sealed class AuthController : ServiceControllerBase
         });
 
         return token;
-    }
-
-    private async Task SendConfirmEmailLink(User user, CancellationToken cancellationToken)
-    {
-        if (user == null || string.IsNullOrWhiteSpace(user.Email))
-        {
-            throw new ArgumentException("User must not be null and must have a valid email.");
-        }
-
-        var emailToken = await this.userRepository.UserManager.GenerateEmailConfirmationTokenAsync(user);
-        await this.emailService.SendEmailConfirmationToUserAsync(user, emailToken, cancellationToken);
-
-        user.LastEmailConfirmationSent = DateTimeOffset.UtcNow;
-        await this.userRepository.SaveChangesAsync(cancellationToken);
     }
 }

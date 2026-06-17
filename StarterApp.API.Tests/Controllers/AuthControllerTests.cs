@@ -15,7 +15,7 @@ using StarterApp.API.Models.Requests.Auth;
 using StarterApp.API.Models.Settings;
 using StarterApp.API.Services.Auth;
 using StarterApp.API.Services.Core;
-using StarterApp.API.Services.Email;
+using StarterApp.API.Services.Domain;
 
 namespace StarterApp.API.Tests.Controllers;
 
@@ -28,9 +28,10 @@ public sealed class AuthControllerTests
 
     private readonly Mock<IUserRepository> userRepositoryMock;
     private readonly Mock<IJwtTokenService> jwtTokenServiceMock;
-    private readonly Mock<IEmailService> emailServiceMock;
+    private readonly Mock<IUserService> userServiceMock;
     private readonly Mock<IGitHubOAuthService> gitHubOAuthServiceMock;
     private readonly Mock<IGoogleOAuthService> googleOAuthServiceMock;
+    private readonly Mock<IExternalLoginService> externalLoginServiceMock;
     private readonly Mock<ICorrelationIdService> correlationIdServiceMock;
     private readonly AuthController sut;
 
@@ -38,9 +39,10 @@ public sealed class AuthControllerTests
     {
         this.userRepositoryMock = new Mock<IUserRepository>();
         this.jwtTokenServiceMock = new Mock<IJwtTokenService>();
-        this.emailServiceMock = new Mock<IEmailService>();
+        this.userServiceMock = new Mock<IUserService>();
         this.gitHubOAuthServiceMock = new Mock<IGitHubOAuthService>();
         this.googleOAuthServiceMock = new Mock<IGoogleOAuthService>();
+        this.externalLoginServiceMock = new Mock<IExternalLoginService>();
         this.correlationIdServiceMock = new Mock<ICorrelationIdService>();
         this.correlationIdServiceMock.Setup(s => s.CorrelationId).Returns("corr-id");
 
@@ -62,9 +64,10 @@ public sealed class AuthControllerTests
         this.sut = new AuthController(
             this.userRepositoryMock.Object,
             this.jwtTokenServiceMock.Object,
-            this.emailServiceMock.Object,
+            this.userServiceMock.Object,
             this.gitHubOAuthServiceMock.Object,
             this.googleOAuthServiceMock.Object,
+            this.externalLoginServiceMock.Object,
             settings,
             this.correlationIdServiceMock.Object,
             NullLogger<AuthController>.Instance);

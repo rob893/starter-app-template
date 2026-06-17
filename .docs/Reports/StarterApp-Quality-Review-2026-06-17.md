@@ -43,7 +43,7 @@ The template is, overall, a **well-organised and idiomatic foundation**: the bac
 
 ## Resolution log (2026-06-17)
 
-Quality fixes are being applied in batches; earlier batches are committed. The latest batch — **Q-BE-09, Q-BE-11, Q-FE-13, Q-CI-02, Q-INFRA-04, Q-INFRA-03, Q-INFRA-06** — is applied and verified, pending commit. Dispositions:
+Quality fixes are being applied in batches; earlier batches are committed. The most recent work — **Q-BE-10** (extract `IExternalLoginService`) plus the Q-CI-04 / Q-BE-05 won't-fix decisions — completes the backlog: **every finding is now resolved** (fixed, partial-by-design, or won't-fix). Dispositions:
 
 | Finding | Disposition | Detail |
 |---|---|---|
@@ -80,8 +80,9 @@ Quality fixes are being applied in batches; earlier batches are committed. The l
 | Q-INFRA-06 | ✅ **Fixed** | Aligned resource `apiVersion`s to recent stable releases (Postgres `2024-08-01`, Web `2024-11-01`, Key Vault `2024-11-01`, Log Analytics `2025-02-01`); the bump also cleared the prior BCP081 warnings. |
 | Q-CI-04 | ⛔ **Won't fix** | Leaving the API deploy job without an `environment:` gate is an accepted decision. |
 | Q-BE-05 | ⛔ **Won't fix** | By design the seeded admin uses **social login**, so there is deliberately no password in the code/seeder — the "can't log in with a password" behavior is intended. |
+| Q-BE-10 | ✅ **Fixed** | Extracted `IExternalLoginService` (+ `ExternalLoginIdentity` record) owning the shared find-or-link-or-create flow; both OAuth actions now build a normalized identity and delegate via `Result<T>` / `HandleServiceFailureResult` (controller −117/+35 lines). Behavior preserved exactly (status codes, per-provider email-verified semantics); +7 service tests → 77/77. |
 
-The only remaining **open** finding is **Q-BE-10** (AuthController business logic + duplicated OAuth flows). Verified after the latest changes: API Release build **0 warnings** + **70/70** tests; UI **lint + build + 54/54** tests; Bicep `az bicep build` **0 warnings** (the prior BCP081 notices were cleared by the apiVersion bump).
+**All 34 findings are now resolved** — 28 fixed, 2 partial (by design), 4 won't-fix, 0 open. Final verification: API Release build **0 warnings** + **77/77** tests; UI **lint + build + 54/54** tests; Bicep `az bicep build` **0 warnings** (the prior BCP081 notices were cleared by the apiVersion bump).
 
 ## Master ranking — all findings by Priority Score
 
@@ -116,7 +117,7 @@ The only remaining **open** finding is **Q-BE-10** (AuthController business logi
 | 25 | Q-FE-12 | ✅ | Frontend UI & Infrastructure / CI | `checkAuth` route detection via fragile string matching | 2 | 2 | 2 | 2.00 | Low |
 | 26 | Q-BE-08 | ✅ | Backend (.NET API & tests) | Misspelling "occured" repeated across XML docs | 1 | 1 | 1 | 2.00 | Low |
 | 27 | Q-BE-09 | ✅ | Backend (.NET API & tests) | Async naming + ignored `CancellationToken` in OAuth services | 1 | 1 | 1 | 2.00 | Low |
-| 28 | Q-BE-10 | ☐ | Backend (.NET API & tests) | `AuthController` holds business logic + ~duplicated OAuth flows | 3 | 3 | 4 | 1.50 | Medium |
+| 28 | Q-BE-10 | ✅ | Backend (.NET API & tests) | `AuthController` holds business logic + ~duplicated OAuth flows | 3 | 3 | 4 | 1.50 | Medium |
 | 29 | Q-FE-13 | ✅ | Frontend UI & Infrastructure / CI | Inconsistent `username` vs `userName` field casing in types | 1 | 2 | 2 | 1.50 | Low |
 | 30 | Q-CI-02 | ✅ | Frontend UI & Infrastructure / CI | Build/test steps duplicated across 3 workflows (not DRY) | 2 | 2 | 3 | 1.33 | Low |
 | 31 | Q-INFRA-04 | ✅ | Frontend UI & Infrastructure / CI | Postgres/infra sizing hardcoded, not parameterized for prod | 2 | 2 | 3 | 1.33 | Low |
@@ -245,6 +246,9 @@ The only remaining **open** finding is **Q-BE-10** (AuthController business logi
 - **Recommendation:** Rename to `GetGitHubUserAsync` (and the interface member). For `ValidateIdTokenAsync`, either thread the token through where the underlying API supports it or document why it is intentionally unused.
 
 #### Q-BE-10: `AuthController` holds business logic + ~duplicated OAuth flows
+
+> **Status (2026-06-17): ✅ Fixed** — extracted `IExternalLoginService`/`ExternalLoginIdentity`; the Google/GitHub actions now build a normalized identity and delegate the find-or-link-or-create flow via `Result<T>` + `HandleServiceFailureResult` (controller −117/+35 lines). Behavior preserved exactly (status codes + per-provider email-verified semantics); +7 service tests (suite 77/77). Follow-up: the confirmation-email send was consolidated into a single `UserService.SendEmailConfirmationAsync(User)` — removing the duplicated `SendConfirmEmailLink` from both `AuthController` and `ExternalLoginService` (the core now lives in exactly one place).
+
 - **Severity / Priority:** Medium / 1.5
 - **Impact / Risk / Effort:** 3 / 3 / 4
 - **Location(s):** StarterApp.API/Controllers/V1/AuthController.cs:169-268 (Google), StarterApp.API/Controllers/V1/AuthController.cs:283-388 (GitHub)
