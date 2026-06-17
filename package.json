@@ -1,0 +1,12 @@
+{
+  "name": "starter-app-template",
+  "private": true,
+  "scripts": {
+    "start": "cd StarterApp.API && dotnet watch run",
+    "build-api": "cd StarterApp.API && dotnet build",
+    "test-api": "dotnet test",
+    "publish-api": "cd StarterApp.API && dotnet publish -c Release -o dist",
+    "start-ui": "cd starter-app-ui && npm run dev",
+    "build-ui": "cd starter-app-ui && npm run build"
+  }
+}

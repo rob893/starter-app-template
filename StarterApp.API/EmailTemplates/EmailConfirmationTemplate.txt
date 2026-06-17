@@ -1,0 +1,26 @@
+====================================
+        StarterApp - CONFIRM YOUR EMAIL
+====================================
+
+Welcome to StarterApp! 🎉
+
+Hey there, future coding ninja! 👋
+
+Thanks for joining our community!
+
+To get started and confirm your email address, please click the link below or copy and paste it into your browser:
+
+{CONFIRMATION_LINK}
+
+🔒 SECURITY NOTE:
+If you didn't create a StarterApp account, you can safely ignore this email. The confirmation link will expire in 24 hours for your security.
+
+Ready to show those algorithms who's boss? Let's get coding! 💪
+
+====================================
+
+This email was sent because you created an account on StarterApp.
+
+Having trouble? Contact us or visit our website for support.
+
+© StarterApp - Level up your coding skills!

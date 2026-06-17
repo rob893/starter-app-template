@@ -1,0 +1,23 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "namePrefix": {
+      "value": "starterapp"
+    },
+    "environment": {
+      "value": "dev"
+    },
+    "postgresAdminLogin": {
+      "value": "pgadmin"
+    },
+    "postgresAdminPassword": {
+      // Override at deploy time: --parameters postgresAdminPassword=${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+      // Never commit a real password here.
+      "value": "PLACEHOLDER-override-via-secret"
+    },
+    "appServiceSku": {
+      "value": "B1"
+    }
+  }
+}
