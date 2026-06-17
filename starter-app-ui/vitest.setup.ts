@@ -11,4 +11,4 @@ if (!globalThis.crypto.randomUUID) {
 }
 
 // Required for React 18+ act() in test environments.
-(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

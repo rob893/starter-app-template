@@ -1,6 +1,7 @@
 import { createContext, useReducer, useEffect, useCallback, useRef, type ReactNode, useMemo } from 'react';
 import { authApi, getAccessToken, clearAccessToken } from '../services/auth';
 import { decodeJwtToken } from '../utils/auth';
+import { isPublicRoute } from '../constants/routes';
 import type { AuthState, User, LoginRequest, RegisterRequest } from '../types/auth';
 
 interface AuthContextType extends AuthState {
@@ -128,11 +129,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const checkAuth = useCallback(async () => {
-    const currentPath = window.location.hash.replace('#', '');
-    const isAuthFlow =
-      currentPath.includes('/auth/') || currentPath.includes('/login') || currentPath.includes('/register');
+    const currentPath = window.location.hash.replace(/^#/, '').split('?')[0];
 
-    if (isCheckingAuth.current || isAuthFlow) {
+    if (isCheckingAuth.current || isPublicRoute(currentPath)) {
       return;
     }
 

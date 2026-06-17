@@ -70,7 +70,7 @@ public sealed class AuthController : ServiceControllerBase
     /// <returns>The user object and tokens.</returns>
     /// <response code="201">The user object and tokens.</response>
     /// <response code="400">If the request is invalid.</response>
-    /// <response code="500">If an unexpected server error occured.</response>
+    /// <response code="500">If an unexpected server error occurred.</response>
     /// <response code="504">If the server took too long to respond.</response>
     [AllowAnonymous]
     [HttpPost("register", Name = nameof(RegisterAsync))]
@@ -119,7 +119,7 @@ public sealed class AuthController : ServiceControllerBase
     /// <response code="200">The user object and tokens.</response>
     /// <response code="400">If the request is invalid.</response>
     /// <response code="401">If provided login information is invalid.</response>
-    /// <response code="500">If an unexpected server error occured.</response>
+    /// <response code="500">If an unexpected server error occurred.</response>
     /// <response code="504">If the server took too long to respond.</response>
     [AllowAnonymous]
     [HttpPost("login", Name = nameof(LoginAsync))]
@@ -166,7 +166,7 @@ public sealed class AuthController : ServiceControllerBase
     /// <response code="200">If the user was logged in.</response>
     /// <response code="400">If the request is invalid.</response>
     /// <response code="401">If provided login information is invalid.</response>
-    /// <response code="500">If an unexpected server error occured.</response>
+    /// <response code="500">If an unexpected server error occurred.</response>
     /// <response code="504">If the server took too long to respond.</response>
     [AllowAnonymous]
     [HttpPost("login/google", Name = nameof(LoginGoogleAsync))]
@@ -281,7 +281,7 @@ public sealed class AuthController : ServiceControllerBase
     /// <response code="200">If the user was logged in.</response>
     /// <response code="400">If the request is invalid.</response>
     /// <response code="401">If provided login information is invalid.</response>
-    /// <response code="500">If an unexpected server error occured.</response>
+    /// <response code="500">If an unexpected server error occurred.</response>
     /// <response code="504">If the server took too long to respond.</response>
     [AllowAnonymous]
     [HttpPost("login/github", Name = nameof(LoginGitHubAsync))]
@@ -455,7 +455,7 @@ public sealed class AuthController : ServiceControllerBase
     /// <response code="204">No content.</response>
     /// <response code="400">If the request is invalid.</response>
     /// <response code="401">If provided login information is invalid.</response>
-    /// <response code="500">If an unexpected server error occured.</response>
+    /// <response code="500">If an unexpected server error occurred.</response>
     /// <response code="504">If the server took too long to respond.</response>
     [HttpPost("logout", Name = nameof(LogoutAsync))]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -494,7 +494,7 @@ public sealed class AuthController : ServiceControllerBase
     /// <response code="200">If the token was refreshed.</response>
     /// <response code="400">If the request is invalid.</response>
     /// <response code="401">If provided token pair was invalid.</response>
-    /// <response code="500">If an unexpected server error occured.</response>
+    /// <response code="500">If an unexpected server error occurred.</response>
     /// <response code="504">If the server took too long to respond.</response>
     [AllowAnonymous]
     [HttpPost("refreshToken", Name = nameof(RefreshTokenAsync))]

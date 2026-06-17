@@ -2,44 +2,25 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, Button, Spinner, Chip } from '@heroui/react';
 import { FormField } from '../components/FormField';
 import { useAuth } from '../hooks/useAuth';
-import { useHelloV1, useHelloV2, useNotesPage, useCreateNote, useDeleteNote } from '../hooks/api';
-import type { Note, CursorPaginatedResponse } from '../types/models';
-import { notesApi } from '../services/api';
+import { useHelloV1, useHelloV2, useInfiniteNotes, useCreateNote, useDeleteNote } from '../hooks/api';
+import type { Note } from '../types/models';
 
 export function HomePage() {
   const { user } = useAuth();
   const { data: helloV1, isLoading: loadingV1 } = useHelloV1();
   const { data: helloV2, isLoading: loadingV2 } = useHelloV2();
 
-  // Cursor pagination state for notes
-  const [pages, setPages] = useState<CursorPaginatedResponse<Note>[]>([]);
-  const [loadingMore, setLoadingMore] = useState(false);
-
-  const { data: firstPage, isLoading: loadingNotes } = useNotesPage(undefined, 5);
+  const {
+    data: notesData,
+    isLoading: loadingNotes,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage
+  } = useInfiniteNotes(5);
   const createNote = useCreateNote();
   const deleteNote = useDeleteNote();
 
-  const allNotes: Note[] = [
-    ...(firstPage?.nodes ?? firstPage?.edges?.map(e => e.node) ?? []),
-    ...pages.flatMap(p => p.nodes ?? p.edges?.map(e => e.node) ?? [])
-  ];
-
-  const latestPage = pages.length > 0 ? pages[pages.length - 1] : firstPage;
-  const hasNextPage = latestPage?.pageInfo?.hasNextPage ?? false;
-  const endCursor = latestPage?.pageInfo?.endCursor;
-
-  const handleLoadMore = async () => {
-    if (!endCursor) return;
-    setLoadingMore(true);
-    try {
-      const next = await notesApi.getNotes({ first: 5, after: endCursor });
-      setPages(prev => [...prev, next]);
-    } catch (err) {
-      console.error('Failed to load more notes:', err);
-    } finally {
-      setLoadingMore(false);
-    }
-  };
+  const allNotes: Note[] = (notesData?.pages ?? []).flatMap(page => page.nodes ?? page.edges?.map(e => e.node) ?? []);
 
   const [noteTitle, setNoteTitle] = useState('');
   const [noteContent, setNoteContent] = useState('');
@@ -51,7 +32,6 @@ export function HomePage() {
     await createNote.mutateAsync({ title: noteTitle.trim(), content: noteContent.trim() });
     setNoteTitle('');
     setNoteContent('');
-    setPages([]);
   };
 
   return (
@@ -169,9 +149,14 @@ export function HomePage() {
               ))}
 
               {hasNextPage && (
-                <Button variant="outline" fullWidth isDisabled={loadingMore} onPress={handleLoadMore}>
-                  {loadingMore ? <Spinner color="current" size="sm" className="mr-2" /> : null}
-                  {loadingMore ? 'Loading...' : 'Load More'}
+                <Button
+                  variant="outline"
+                  fullWidth
+                  isDisabled={isFetchingNextPage}
+                  onPress={() => fetchNextPage()}
+                >
+                  {isFetchingNextPage ? <Spinner color="current" size="sm" className="mr-2" /> : null}
+                  {isFetchingNextPage ? 'Loading...' : 'Load More'}
                 </Button>
               )}
             </div>

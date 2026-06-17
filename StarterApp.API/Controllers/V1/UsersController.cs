@@ -204,7 +204,7 @@ public sealed class UsersController : ServiceControllerBase
     /// <response code="200">If the user was updated.</response>
     /// <response code="400">If the request is invalid.</response>
     /// <response code="403">If the user is not authorized to update this password.</response>
-    /// <response code="500">If an unexpected server error occured.</response>
+    /// <response code="500">If an unexpected server error occurred.</response>
     /// <response code="504">If the server took too long to respond.</response>
     [HttpPut("{id}/username", Name = nameof(UpdateUsernameAsync))]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -231,7 +231,7 @@ public sealed class UsersController : ServiceControllerBase
     /// <response code="204">If the password was updated.</response>
     /// <response code="400">If the request is invalid.</response>
     /// <response code="403">If the user is not authorized to update this password.</response>
-    /// <response code="500">If an unexpected server error occured.</response>
+    /// <response code="500">If an unexpected server error occurred.</response>
     /// <response code="504">If the server took too long to respond.</response>
     [HttpPut("{id}/password", Name = nameof(UpdatePasswordAsync))]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -255,7 +255,7 @@ public sealed class UsersController : ServiceControllerBase
     /// <response code="204">If the email was sent.</response>
     /// <response code="400">If the request is invalid.</response>
     /// <response code="403">If the user is not authorized to resend the email.</response>
-    /// <response code="500">If an unexpected server error occured.</response>
+    /// <response code="500">If an unexpected server error occurred.</response>
     /// <response code="504">If the server took too long to respond.</response>
     [HttpPost("{id}/emailConfirmations", Name = nameof(SendEmailConfirmationAsync))]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -278,7 +278,7 @@ public sealed class UsersController : ServiceControllerBase
     /// <returns>No content.</returns>
     /// <response code="204">If the password reset link was sent.</response>
     /// <response code="400">If the request is invalid.</response>
-    /// <response code="500">If an unexpected server error occured.</response>
+    /// <response code="500">If an unexpected server error occurred.</response>
     /// <response code="504">If the server took too long to respond.</response>
     [AllowAnonymous]
     [HttpPost("forgotPassword", Name = nameof(ForgotPasswordAsync))]
@@ -298,7 +298,7 @@ public sealed class UsersController : ServiceControllerBase
     /// <returns>No content.</returns>
     /// <response code="204">If the password was reset.</response>
     /// <response code="400">If the request is invalid.</response>
-    /// <response code="500">If an unexpected server error occured.</response>
+    /// <response code="500">If an unexpected server error occurred.</response>
     /// <response code="504">If the server took too long to respond.</response>
     [AllowAnonymous]
     [HttpPost("resetPassword", Name = nameof(ResetPasswordAsync))]
@@ -318,7 +318,7 @@ public sealed class UsersController : ServiceControllerBase
     /// <returns>No content.</returns>
     /// <response code="204">If the email was confirmed.</response>
     /// <response code="400">If the request is invalid.</response>
-    /// <response code="500">If an unexpected server error occured.</response>
+    /// <response code="500">If an unexpected server error occurred.</response>
     /// <response code="504">If the server took too long to respond.</response>
     [AllowAnonymous]
     [HttpPost("emailConfirmations", Name = nameof(ConfirmEmailAsync))]

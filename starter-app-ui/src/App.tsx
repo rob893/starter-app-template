@@ -8,6 +8,7 @@ import { RegisterPage } from './pages/RegisterPage';
 import { OAuthCallbackPage } from './pages/OAuthCallbackPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
+import { routePaths } from './constants/routes';
 
 function App() {
   return (
@@ -15,16 +16,16 @@ function App() {
       <div className="app min-h-screen bg-background text-foreground">
         <Routes>
           {/* Auth routes (unauthenticated) */}
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
-          <Route path="/auth/github/callback" element={<OAuthCallbackPage provider="github" />} />
-          <Route path="/auth/google/callback" element={<OAuthCallbackPage provider="google" />} />
+          <Route path={routePaths.login} element={<LoginPage />} />
+          <Route path={routePaths.register} element={<RegisterPage />} />
+          <Route path={routePaths.forgotPassword} element={<ForgotPasswordPage />} />
+          <Route path={routePaths.resetPassword} element={<ResetPasswordPage />} />
+          <Route path={routePaths.gitHubCallback} element={<OAuthCallbackPage provider="github" />} />
+          <Route path={routePaths.googleCallback} element={<OAuthCallbackPage provider="google" />} />
 
           {/* Protected routes */}
           <Route
-            path="/"
+            path={routePaths.home}
             element={
               <ProtectedRoute>
                 <AppLayout>

@@ -1,47 +1,14 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { helloApi, notesApi } from '../services/api';
-import { authApi } from '../services/auth';
 import { useAuth } from './useAuth';
-import type { LoginRequest, RegisterRequest } from '../types/auth';
-import type {
-  CreateNoteRequest,
-  UpdateNoteRequest,
-  Note,
-  CursorPaginationQueryParameters,
-  CursorPaginatedResponse
-} from '../types/models';
+import type { CreateNoteRequest } from '../types/models';
 
 export const queryKeys = {
   helloV1: ['hello', 'v1'] as const,
   helloV2: ['hello', 'v2'] as const,
-  notes: (params?: CursorPaginationQueryParameters) => ['notes', params] as const,
+  notesInfinite: (pageSize: number) => ['notes', 'infinite', pageSize] as const,
   note: (id: number) => ['notes', id] as const
 } as const;
-
-// Auth hooks
-export function useLogin() {
-  return useMutation({
-    mutationFn: (credentials: Omit<LoginRequest, 'deviceId'>) => authApi.login(credentials)
-  });
-}
-
-export function useRegister() {
-  return useMutation({
-    mutationFn: (userData: Omit<RegisterRequest, 'deviceId'>) => authApi.register(userData)
-  });
-}
-
-export function useLogout() {
-  return useMutation({
-    mutationFn: () => authApi.logout()
-  });
-}
-
-export function useRefreshToken() {
-  return useMutation({
-    mutationFn: () => authApi.refreshToken()
-  });
-}
 
 // Hello hooks
 export function useHelloV1() {
@@ -67,21 +34,6 @@ export function useHelloV2() {
 }
 
 // Notes hooks
-export function useNotes(params?: CursorPaginationQueryParameters) {
-  const { isLoading: isAuthLoading, isAuthenticated } = useAuth();
-
-  return useQuery({
-    queryKey: queryKeys.notes(params),
-    queryFn: () => notesApi.getNotes(params),
-    enabled: isAuthenticated && !isAuthLoading,
-    staleTime: 5 * 60 * 1000
-  });
-}
-
-export function useNotesPage(cursor?: string, pageSize = 10) {
-  return useNotes({ first: pageSize, after: cursor });
-}
-
 export function useCreateNote() {
   const queryClient = useQueryClient();
 
@@ -90,18 +42,6 @@ export function useCreateNote() {
     onSuccess: newNote => {
       queryClient.invalidateQueries({ queryKey: ['notes'] });
       queryClient.setQueryData(queryKeys.note(newNote.id), newNote);
-    }
-  });
-}
-
-export function useUpdateNote() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ id, data }: { id: number; data: UpdateNoteRequest }) => notesApi.updateNote(id, data),
-    onSuccess: updatedNote => {
-      queryClient.invalidateQueries({ queryKey: ['notes'] });
-      queryClient.setQueryData(queryKeys.note(updatedNote.id), updatedNote);
     }
   });
 }
@@ -118,24 +58,19 @@ export function useDeleteNote() {
   });
 }
 
-// Cursor-paginated notes with "load more" support
-export function useNotesCursorPaginated(pageSize = 10) {
+// Cursor-paginated notes with "load more" support, cached via React Query's
+// infinite query. Created/deleted notes invalidate the `['notes']` key, which
+// also refreshes this query so the list stays in sync.
+export function useInfiniteNotes(pageSize = 10) {
   const { isLoading: isAuthLoading, isAuthenticated } = useAuth();
-  const queryClient = useQueryClient();
 
-  const firstPage = useQuery({
-    queryKey: queryKeys.notes({ first: pageSize }),
-    queryFn: () => notesApi.getNotes({ first: pageSize }),
+  return useInfiniteQuery({
+    queryKey: queryKeys.notesInfinite(pageSize),
+    queryFn: ({ pageParam }: { pageParam: string | undefined }) =>
+      notesApi.getNotes({ first: pageSize, after: pageParam }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: lastPage => (lastPage.pageInfo?.hasNextPage ? lastPage.pageInfo.endCursor : undefined),
     enabled: isAuthenticated && !isAuthLoading,
     staleTime: 5 * 60 * 1000
   });
-
-  const loadMore = async (endCursor: string): Promise<CursorPaginatedResponse<Note>> => {
-    const params = { first: pageSize, after: endCursor };
-    const result = await notesApi.getNotes(params);
-    queryClient.setQueryData(queryKeys.notes(params), result);
-    return result;
-  };
-
-  return { firstPage, loadMore };
 }

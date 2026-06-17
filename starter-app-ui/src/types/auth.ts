@@ -19,11 +19,6 @@ export interface RegisterRequest {
   deviceId: string;
 }
 
-export interface OAuthLoginRequest {
-  code: string;
-  deviceId: string;
-}
-
 export interface LoginResponse {
   token: string;
   user: User;

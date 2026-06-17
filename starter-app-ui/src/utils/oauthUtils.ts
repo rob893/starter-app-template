@@ -132,7 +132,3 @@ export function handleOAuthCallback(
 
 export const redirectToGitHubOAuth = () => redirectToOAuth('github');
 export const redirectToGoogleOAuth = () => redirectToOAuth('google');
-export const handleGitHubCallbackFromUrl = () => handleOAuthCallbackFromUrl('github');
-export const handleGoogleCallbackFromUrl = () => handleOAuthCallbackFromUrl('google');
-export const handleGitHubCallback = (searchParams: URLSearchParams) => handleOAuthCallback('github', searchParams);
-export const handleGoogleCallback = (searchParams: URLSearchParams) => handleOAuthCallback('google', searchParams);

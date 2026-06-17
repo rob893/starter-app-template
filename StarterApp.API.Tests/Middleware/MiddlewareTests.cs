@@ -1,0 +1,162 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
+using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
+using StarterApp.API.Constants;
+using StarterApp.API.Middleware;
+using StarterApp.API.Services.Core;
+
+namespace StarterApp.API.Tests.Middleware;
+
+/// <summary>
+/// Tests for <see cref="CorrelationIdMiddleware"/> and <see cref="GlobalExceptionHandlerMiddleware"/>.
+/// </summary>
+public sealed class MiddlewareTests
+{
+    [Fact]
+    public async Task CorrelationIdMiddleware_NoIncomingId_GeneratesAndSetsResponseHeader()
+    {
+        var responseFeature = new CapturingResponseFeature();
+        var context = new DefaultHttpContext();
+        context.Features.Set<IHttpResponseFeature>(responseFeature);
+
+        var correlationIdService = new Mock<ICorrelationIdService>();
+        string? capturedId = null;
+        correlationIdService.SetupSet(s => s.CorrelationId = It.IsAny<string>())
+            .Callback<string>(value => capturedId = value);
+        correlationIdService.Setup(s => s.CorrelationId).Returns(() => capturedId ?? string.Empty);
+
+        var nextCalled = false;
+        var middleware = new CorrelationIdMiddleware(
+            _ => { nextCalled = true; return Task.CompletedTask; },
+            NullLogger<CorrelationIdMiddleware>.Instance);
+
+        await middleware.InvokeAsync(context, correlationIdService.Object);
+        await responseFeature.FireOnStartingAsync();
+
+        Assert.True(nextCalled);
+        Assert.False(string.IsNullOrWhiteSpace(capturedId));
+        Assert.True(context.Request.Headers.ContainsKey(AppHeaderNames.CorrelationId));
+        Assert.Equal(capturedId, context.Response.Headers[AppHeaderNames.CorrelationId]);
+    }
+
+    [Fact]
+    public async Task CorrelationIdMiddleware_IncomingId_IsPreserved()
+    {
+        var responseFeature = new CapturingResponseFeature();
+        var context = new DefaultHttpContext();
+        context.Features.Set<IHttpResponseFeature>(responseFeature);
+        context.Request.Headers[AppHeaderNames.CorrelationId] = "incoming-id";
+
+        var correlationIdService = new Mock<ICorrelationIdService>();
+        string? capturedId = null;
+        correlationIdService.SetupSet(s => s.CorrelationId = It.IsAny<string>())
+            .Callback<string>(value => capturedId = value);
+
+        var middleware = new CorrelationIdMiddleware(
+            _ => Task.CompletedTask,
+            NullLogger<CorrelationIdMiddleware>.Instance);
+
+        await middleware.InvokeAsync(context, correlationIdService.Object);
+        await responseFeature.FireOnStartingAsync();
+
+        Assert.Equal("incoming-id", capturedId);
+        Assert.Equal("incoming-id", context.Response.Headers[AppHeaderNames.CorrelationId]);
+    }
+
+    [Fact]
+    public async Task GlobalExceptionHandler_GenericException_WritesProblemDetailsWith500()
+    {
+        var context = BuildContextWithException(new InvalidOperationException("boom"));
+        var middleware = new GlobalExceptionHandlerMiddleware(_ => Task.CompletedTask, NullLogger<GlobalExceptionHandlerMiddleware>.Instance);
+
+        await middleware.InvokeAsync(context, BuildCorrelationService());
+
+        Assert.Equal(StatusCodes.Status500InternalServerError, context.Response.StatusCode);
+        Assert.Equal("application/problem+json", context.Response.ContentType);
+        Assert.Contains("correlationId", await ReadBody(context));
+    }
+
+    [Fact]
+    public async Task GlobalExceptionHandler_TimeoutException_MapsTo504()
+    {
+        var context = BuildContextWithException(new TimeoutException("slow"));
+        var middleware = new GlobalExceptionHandlerMiddleware(_ => Task.CompletedTask, NullLogger<GlobalExceptionHandlerMiddleware>.Instance);
+
+        await middleware.InvokeAsync(context, BuildCorrelationService());
+
+        Assert.Equal(StatusCodes.Status504GatewayTimeout, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GlobalExceptionHandler_NoExceptionFeature_DoesNothing()
+    {
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+        var middleware = new GlobalExceptionHandlerMiddleware(_ => Task.CompletedTask, NullLogger<GlobalExceptionHandlerMiddleware>.Instance);
+
+        await middleware.InvokeAsync(context, BuildCorrelationService());
+
+        Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
+    }
+
+    private static ICorrelationIdService BuildCorrelationService()
+    {
+        var mock = new Mock<ICorrelationIdService>();
+        mock.Setup(s => s.CorrelationId).Returns("test-correlation-id");
+        return mock.Object;
+    }
+
+    private static DefaultHttpContext BuildContextWithException(Exception exception)
+    {
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+        context.Features.Set<IExceptionHandlerFeature>(new ExceptionHandlerFeature { Error = exception });
+        return context;
+    }
+
+    private static async Task<string> ReadBody(HttpContext context)
+    {
+        context.Response.Body.Seek(0, SeekOrigin.Begin);
+        using var reader = new StreamReader(context.Response.Body);
+        return await reader.ReadToEndAsync();
+    }
+
+    /// <summary>
+    /// Minimal response feature that captures OnStarting callbacks so tests can fire them.
+    /// </summary>
+    private sealed class CapturingResponseFeature : IHttpResponseFeature
+    {
+        private readonly List<(Func<object, Task> Callback, object State)> callbacks = [];
+
+        public int StatusCode { get; set; } = StatusCodes.Status200OK;
+
+        public string? ReasonPhrase { get; set; }
+
+        public IHeaderDictionary Headers { get; set; } = new HeaderDictionary();
+
+        public Stream Body { get; set; } = Stream.Null;
+
+        public bool HasStarted { get; private set; }
+
+        public void OnStarting(Func<object, Task> callback, object state) => this.callbacks.Add((callback, state));
+
+        public void OnCompleted(Func<object, Task> callback, object state)
+        {
+        }
+
+        public async Task FireOnStartingAsync()
+        {
+            this.HasStarted = true;
+            foreach (var (callback, state) in this.callbacks)
+            {
+                await callback(state);
+            }
+        }
+    }
+}

@@ -44,11 +44,11 @@ apiClient.interceptors.request.use(
 
 let isRefreshing = false;
 let failedQueue: Array<{
-  resolve(value?: any): void;
-  reject(error?: any): void;
+  resolve: (token: string | null) => void;
+  reject: (err: unknown) => void;
 }> = [];
 
-const processQueue = (error: any, token: string | null = null) => {
+const processQueue = (error: unknown, token: string | null = null) => {
   failedQueue.forEach(({ resolve, reject }) => {
     if (error) {
       reject(error);
@@ -93,7 +93,7 @@ apiClient.interceptors.response.use(
         !originalRequest._retry
       ) {
         if (isRefreshing) {
-          return new Promise((resolve, reject) => {
+          return new Promise<string | null>((resolve, reject) => {
             failedQueue.push({ resolve, reject });
           })
             .then(token => {
