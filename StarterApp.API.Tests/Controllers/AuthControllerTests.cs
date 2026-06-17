@@ -95,7 +95,7 @@ public sealed class AuthControllerTests
             DeviceId = DeviceId
         };
 
-        var result = await this.sut.RegisterAsync(request);
+        var result = await this.sut.RegisterAsync(request, CancellationToken.None);
 
         var created = Assert.IsType<CreatedAtRouteResult>(result.Result);
         Assert.Equal(StatusCodes.Status201Created, created.StatusCode);
@@ -104,7 +104,7 @@ public sealed class AuthControllerTests
     [Fact]
     public async Task RegisterAsync_NullRequest_ReturnsBadRequest()
     {
-        var result = await this.sut.RegisterAsync(null!);
+        var result = await this.sut.RegisterAsync(null!, CancellationToken.None);
 
         Assert.IsType<BadRequestObjectResult>(result.Result);
     }
@@ -124,7 +124,7 @@ public sealed class AuthControllerTests
             DeviceId = DeviceId
         };
 
-        var result = await this.sut.RegisterAsync(request);
+        var result = await this.sut.RegisterAsync(request, CancellationToken.None);
 
         Assert.IsType<BadRequestObjectResult>(result.Result);
     }
@@ -140,7 +140,7 @@ public sealed class AuthControllerTests
             .Setup(r => r.CheckPasswordAsync(user, "Password1!", It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
 
-        var result = await this.sut.LoginAsync(new LoginRequest { Username = "jane", Password = "Password1!", DeviceId = DeviceId });
+        var result = await this.sut.LoginAsync(new LoginRequest { UserName = "jane", Password = "Password1!", DeviceId = DeviceId }, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         Assert.Equal(StatusCodes.Status200OK, ok.StatusCode);
@@ -156,7 +156,7 @@ public sealed class AuthControllerTests
             .Setup(r => r.GetByEmailAsync(It.IsAny<string>(), It.IsAny<Expression<System.Func<User, object>>[]>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((User?)null);
 
-        var result = await this.sut.LoginAsync(new LoginRequest { Username = "ghost", Password = "x", DeviceId = DeviceId });
+        var result = await this.sut.LoginAsync(new LoginRequest { UserName = "ghost", Password = "x", DeviceId = DeviceId }, CancellationToken.None);
 
         var unauthorized = Assert.IsType<UnauthorizedObjectResult>(result.Result);
         Assert.Equal(StatusCodes.Status401Unauthorized, unauthorized.StatusCode);
@@ -173,7 +173,7 @@ public sealed class AuthControllerTests
             .Setup(r => r.CheckPasswordAsync(user, It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
 
-        var result = await this.sut.LoginAsync(new LoginRequest { Username = "jane", Password = "wrong", DeviceId = DeviceId });
+        var result = await this.sut.LoginAsync(new LoginRequest { UserName = "jane", Password = "wrong", DeviceId = DeviceId }, CancellationToken.None);
 
         Assert.IsType<UnauthorizedObjectResult>(result.Result);
     }
@@ -181,7 +181,7 @@ public sealed class AuthControllerTests
     [Fact]
     public async Task LoginAsync_NullRequest_ReturnsBadRequest()
     {
-        var result = await this.sut.LoginAsync(null!);
+        var result = await this.sut.LoginAsync(null!, CancellationToken.None);
 
         Assert.IsType<BadRequestObjectResult>(result.Result);
     }
@@ -192,7 +192,7 @@ public sealed class AuthControllerTests
         this.sut.ControllerContext.HttpContext.Request.Headers[AppHeaderNames.CsrfToken] = "header-value";
         this.sut.ControllerContext.HttpContext.Request.Headers["Cookie"] = $"{CookieKeys.CsrfToken}=different-value";
 
-        var result = await this.sut.RefreshTokenAsync(new RefreshTokenRequest { DeviceId = DeviceId });
+        var result = await this.sut.RefreshTokenAsync(new RefreshTokenRequest { DeviceId = DeviceId }, CancellationToken.None);
 
         var unauthorized = Assert.IsType<UnauthorizedObjectResult>(result);
         Assert.Equal(StatusCodes.Status401Unauthorized, unauthorized.StatusCode);
@@ -204,7 +204,7 @@ public sealed class AuthControllerTests
         this.sut.ControllerContext.HttpContext.Request.Headers[AppHeaderNames.CsrfToken] = "csrf-value";
         this.sut.ControllerContext.HttpContext.Request.Headers["Cookie"] = $"{CookieKeys.CsrfToken}=csrf-value";
 
-        var result = await this.sut.RefreshTokenAsync(new RefreshTokenRequest { DeviceId = DeviceId });
+        var result = await this.sut.RefreshTokenAsync(new RefreshTokenRequest { DeviceId = DeviceId }, CancellationToken.None);
 
         Assert.IsType<UnauthorizedObjectResult>(result);
     }
@@ -219,7 +219,7 @@ public sealed class AuthControllerTests
             .Setup(s => s.IsTokenEligibleForRefreshAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((false, (User?)null));
 
-        var result = await this.sut.RefreshTokenAsync(new RefreshTokenRequest { DeviceId = DeviceId });
+        var result = await this.sut.RefreshTokenAsync(new RefreshTokenRequest { DeviceId = DeviceId }, CancellationToken.None);
 
         Assert.IsType<UnauthorizedObjectResult>(result);
     }
@@ -227,7 +227,7 @@ public sealed class AuthControllerTests
     [Fact]
     public async Task RefreshTokenAsync_NullRequest_ReturnsBadRequest()
     {
-        var result = await this.sut.RefreshTokenAsync(null!);
+        var result = await this.sut.RefreshTokenAsync(null!, CancellationToken.None);
 
         Assert.IsType<BadRequestObjectResult>(result);
     }

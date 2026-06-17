@@ -17,32 +17,59 @@ param adminPassword string
 @description('Name of the initial database to create.')
 param databaseName string = 'starterapp'
 
+@description('Compute SKU name (e.g. Standard_B1ms, Standard_D2s_v3).')
+param skuName string = 'Standard_B1ms'
+
+@description('Compute tier.')
+@allowed([
+  'Burstable'
+  'GeneralPurpose'
+  'MemoryOptimized'
+])
+param skuTier string = 'Burstable'
+
+@description('Storage size in GB.')
+param storageSizeGB int = 32
+
+@description('Automated backup retention in days (7–35).')
+@minValue(7)
+@maxValue(35)
+param backupRetentionDays int = 7
+
+@description('High availability mode.')
+@allowed([
+  'Disabled'
+  'SameZone'
+  'ZoneRedundant'
+])
+param highAvailabilityMode string = 'Disabled'
+
 @description('Tags to apply to the resources.')
 param tags object = {}
 
 var pgServerName = '${namePrefix}-pg-${environment}'
 
-resource postgresServer 'Microsoft.DBforPostgreSQL/flexibleServers@2023-12-01' = {
+resource postgresServer 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' = {
   name: pgServerName
   location: location
   tags: tags
   sku: {
-    name: 'Standard_B1ms'
-    tier: 'Burstable'
+    name: skuName
+    tier: skuTier
   }
   properties: {
     administratorLogin: adminLogin
     administratorLoginPassword: adminPassword
     version: '16'
     storage: {
-      storageSizeGB: 32
+      storageSizeGB: storageSizeGB
     }
     backup: {
-      backupRetentionDays: 7
+      backupRetentionDays: backupRetentionDays
       geoRedundantBackup: 'Disabled'
     }
     highAvailability: {
-      mode: 'Disabled'
+      mode: highAvailabilityMode
     }
     authConfig: {
       activeDirectoryAuth: 'Disabled'
@@ -51,7 +78,7 @@ resource postgresServer 'Microsoft.DBforPostgreSQL/flexibleServers@2023-12-01' =
   }
 }
 
-resource postgresDatabase 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2023-12-01' = {
+resource postgresDatabase 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2024-08-01' = {
   parent: postgresServer
   name: databaseName
   properties: {
@@ -61,7 +88,7 @@ resource postgresDatabase 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2
 }
 
 // 0.0.0.0 → 0.0.0.0 is the Azure "allow all Azure services" sentinel for Flexible Server
-resource firewallAzureServices 'Microsoft.DBforPostgreSQL/flexibleServers/firewallRules@2023-12-01' = {
+resource firewallAzureServices 'Microsoft.DBforPostgreSQL/flexibleServers/firewallRules@2024-08-01' = {
   parent: postgresServer
   name: 'AllowAllAzureServices'
   properties: {
@@ -70,7 +97,4 @@ resource firewallAzureServices 'Microsoft.DBforPostgreSQL/flexibleServers/firewa
   }
 }
 
-output serverName string = postgresServer.name
 output fqdn string = postgresServer.properties.fullyQualifiedDomainName
-// Shape reference only — substitute <replace> with your actual password at runtime
-output connectionStringShape string = 'Host=${postgresServer.properties.fullyQualifiedDomainName};Database=${databaseName};Username=${adminLogin};Password=<replace>;SslMode=Require'

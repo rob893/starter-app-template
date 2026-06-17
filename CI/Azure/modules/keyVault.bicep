@@ -15,7 +15,7 @@ param tags object = {}
 var rawVaultName = take('${namePrefix}-kv-${environment}', 24)
 var vaultName = endsWith(rawVaultName, '-') ? take(rawVaultName, 23) : rawVaultName
 
-resource vault 'Microsoft.KeyVault/vaults@2023-07-01' = {
+resource vault 'Microsoft.KeyVault/vaults@2024-11-01' = {
   name: vaultName
   location: location
   tags: tags
@@ -40,6 +40,5 @@ resource vault 'Microsoft.KeyVault/vaults@2023-07-01' = {
   }
 }
 
-output keyVaultId string = vault.id
 output keyVaultName string = vault.name
 output keyVaultUri string = vault.properties.vaultUri

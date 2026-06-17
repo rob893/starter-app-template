@@ -10,6 +10,20 @@ param location string
 @description('Resource ID of the Log Analytics workspace to link (workspace-based App Insights).')
 param logAnalyticsWorkspaceId string
 
+@description('Data retention in days.')
+@allowed([
+  30
+  60
+  90
+  120
+  180
+  270
+  365
+  550
+  730
+])
+param retentionInDays int = 90
+
 @description('Tags to apply to the resource.')
 param tags object = {}
 
@@ -23,14 +37,12 @@ resource appInsightsComp 'Microsoft.Insights/components@2020-02-02' = {
   properties: {
     Application_Type: 'web'
     WorkspaceResourceId: logAnalyticsWorkspaceId
-    RetentionInDays: 90
+    RetentionInDays: retentionInDays
     IngestionMode: 'LogAnalytics'
     publicNetworkAccessForIngestion: 'Enabled'
     publicNetworkAccessForQuery: 'Enabled'
   }
 }
 
-output appInsightsId string = appInsightsComp.id
 output appInsightsName string = appInsightsComp.name
 output connectionString string = appInsightsComp.properties.ConnectionString
-output instrumentationKey string = appInsightsComp.properties.InstrumentationKey

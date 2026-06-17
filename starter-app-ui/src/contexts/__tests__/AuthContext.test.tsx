@@ -49,7 +49,7 @@ describe('AuthProvider / useAuth', () => {
     const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
 
     await act(async () => {
-      await result.current.login({ username: 'alice', password: 'pw' });
+      await result.current.login({ userName: 'alice', password: 'pw' });
     });
 
     expect(result.current.isAuthenticated).toBe(true);
@@ -63,7 +63,7 @@ describe('AuthProvider / useAuth', () => {
     const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
 
     await act(async () => {
-      await result.current.login({ username: 'alice', password: 'pw' });
+      await result.current.login({ userName: 'alice', password: 'pw' });
     });
 
     expect(result.current.user?.userName).toBe('token-user');
@@ -75,7 +75,7 @@ describe('AuthProvider / useAuth', () => {
     const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
 
     await act(async () => {
-      await expect(result.current.login({ username: 'alice', password: 'bad' })).rejects.toThrow(
+      await expect(result.current.login({ userName: 'alice', password: 'bad' })).rejects.toThrow(
         'invalid credentials'
       );
     });
@@ -90,7 +90,7 @@ describe('AuthProvider / useAuth', () => {
     const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
 
     await act(async () => {
-      await result.current.login({ username: 'alice', password: 'pw' });
+      await result.current.login({ userName: 'alice', password: 'pw' });
     });
     expect(result.current.isAuthenticated).toBe(true);
 

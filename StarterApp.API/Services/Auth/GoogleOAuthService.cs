@@ -67,6 +67,8 @@ public sealed class GoogleOAuthService : IGoogleOAuthService
 
     public async Task<GoogleJsonWebSignature.Payload> ValidateIdTokenAsync(string idToken, CancellationToken cancellationToken)
     {
+        // GoogleJsonWebSignature.ValidateAsync has no CancellationToken overload, so the token
+        // cannot be honored by the underlying API. The parameter is kept for interface consistency.
         return await GoogleJsonWebSignature.ValidateAsync(
             idToken,
             new GoogleJsonWebSignature.ValidationSettings

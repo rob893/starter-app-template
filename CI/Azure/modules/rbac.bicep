@@ -19,7 +19,7 @@ var metricsPublisherRoleId = subscriptionResourceId(
   '3913510d-42f4-4e42-8a64-420c390055eb'
 )
 
-resource vault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
+resource vault 'Microsoft.KeyVault/vaults@2024-11-01' existing = {
   name: keyVaultName
 }
 

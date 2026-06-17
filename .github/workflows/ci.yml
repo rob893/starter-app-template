@@ -19,54 +19,16 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
-      - name: Restore dependencies
-        run: dotnet restore
-
-      - name: Build
-        run: dotnet build -c Release --no-restore
-
-      - name: Test
-        run: dotnet test --no-build -c Release
+      - name: Build & test API
+        uses: ./.github/actions/build-test-api
 
   ui:
     name: Build & Test UI
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: starter-app-ui
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: 'npm'
-          cache-dependency-path: starter-app-ui/package-lock.json
-
-      - name: Install packages
-        run: npm ci
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Test
-        run: npm run test
-
-      - name: Build
-        run: npm run build
+      - name: Build & test UI
+        uses: ./.github/actions/build-test-ui

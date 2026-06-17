@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using StarterApp.API.Extensions;
 using StarterApp.API.Models.Dtos;
@@ -37,13 +38,14 @@ public sealed class NotesController : ServiceControllerBase
     /// Gets a cursor-paginated list of notes for the current user.
     /// </summary>
     /// <param name="queryParameters">The pagination and filter query parameters.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>A paginated list of note DTOs.</returns>
     /// <response code="200">Returns the paginated list of notes.</response>
     [HttpGet(Name = nameof(GetNotesAsync))]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task<ActionResult<CursorPaginatedResponse<NoteDto>>> GetNotesAsync([FromQuery] NoteQueryParameters queryParameters)
+    public async Task<ActionResult<CursorPaginatedResponse<NoteDto>>> GetNotesAsync([FromQuery] NoteQueryParameters queryParameters, CancellationToken cancellationToken)
     {
-        var notes = await this.noteService.GetNotesAsync(queryParameters, this.HttpContext.RequestAborted);
+        var notes = await this.noteService.GetNotesAsync(queryParameters, cancellationToken);
         var response = notes.ToCursorPaginatedResponse(queryParameters);
 
         return this.Ok(response);
@@ -53,6 +55,7 @@ public sealed class NotesController : ServiceControllerBase
     /// Gets a specific note by ID.
     /// </summary>
     /// <param name="id">The note ID.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>The note DTO.</returns>
     /// <response code="200">Returns the note.</response>
     /// <response code="403">If the note does not belong to the current user.</response>
@@ -61,9 +64,9 @@ public sealed class NotesController : ServiceControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<NoteDto>> GetNoteByIdAsync([FromRoute] int id)
+    public async Task<ActionResult<NoteDto>> GetNoteByIdAsync([FromRoute] int id, CancellationToken cancellationToken)
     {
-        var result = await this.noteService.GetNoteByIdAsync(id, this.HttpContext.RequestAborted);
+        var result = await this.noteService.GetNoteByIdAsync(id, cancellationToken);
 
         if (!result.IsSuccess)
         {
@@ -77,15 +80,16 @@ public sealed class NotesController : ServiceControllerBase
     /// Creates a new note for the current user.
     /// </summary>
     /// <param name="request">The create note request.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>The created note.</returns>
     /// <response code="201">The note was created successfully.</response>
     /// <response code="400">If the request is invalid.</response>
     [HttpPost(Name = nameof(CreateNoteAsync))]
     [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<NoteDto>> CreateNoteAsync([FromBody] CreateNoteRequest request)
+    public async Task<ActionResult<NoteDto>> CreateNoteAsync([FromBody] CreateNoteRequest request, CancellationToken cancellationToken)
     {
-        var result = await this.noteService.CreateNoteAsync(request, this.HttpContext.RequestAborted);
+        var result = await this.noteService.CreateNoteAsync(request, cancellationToken);
 
         if (!result.IsSuccess)
         {
@@ -102,6 +106,7 @@ public sealed class NotesController : ServiceControllerBase
     /// </summary>
     /// <param name="id">The note ID.</param>
     /// <param name="request">The update note request.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>The updated note.</returns>
     /// <response code="200">Returns the updated note.</response>
     /// <response code="400">If the request is invalid.</response>
@@ -112,9 +117,9 @@ public sealed class NotesController : ServiceControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<NoteDto>> UpdateNoteAsync([FromRoute] int id, [FromBody] UpdateNoteRequest request)
+    public async Task<ActionResult<NoteDto>> UpdateNoteAsync([FromRoute] int id, [FromBody] UpdateNoteRequest request, CancellationToken cancellationToken)
     {
-        var result = await this.noteService.UpdateNoteAsync(id, request, this.HttpContext.RequestAborted);
+        var result = await this.noteService.UpdateNoteAsync(id, request, cancellationToken);
 
         if (!result.IsSuccess)
         {
@@ -128,6 +133,7 @@ public sealed class NotesController : ServiceControllerBase
     /// Deletes a note.
     /// </summary>
     /// <param name="id">The note ID.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>No content on successful deletion.</returns>
     /// <response code="204">The note was deleted successfully.</response>
     /// <response code="403">If the note does not belong to the current user.</response>
@@ -136,9 +142,9 @@ public sealed class NotesController : ServiceControllerBase
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult> DeleteNoteAsync([FromRoute] int id)
+    public async Task<ActionResult> DeleteNoteAsync([FromRoute] int id, CancellationToken cancellationToken)
     {
-        var result = await this.noteService.DeleteNoteAsync(id, this.HttpContext.RequestAborted);
+        var result = await this.noteService.DeleteNoteAsync(id, cancellationToken);
 
         if (!result.IsSuccess)
         {

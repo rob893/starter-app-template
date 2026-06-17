@@ -59,7 +59,7 @@ public sealed class GitHubOAuthService : IGitHubOAuthService
         return query["access_token"] ?? throw new InvalidOperationException("GitHub access token not found in response.");
     }
 
-    public async Task<GitHubUser> GetGitHubUser(string accessToken, CancellationToken cancellationToken)
+    public async Task<GitHubUser> GetGitHubUserAsync(string accessToken, CancellationToken cancellationToken)
     {
         using var client = this.httpClientFactory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);

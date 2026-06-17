@@ -25,7 +25,7 @@ param tags object = {}
 var appPlanName = '${namePrefix}-asp-${environment}'
 var appName = '${namePrefix}-api-${environment}'
 
-resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
+resource appServicePlan 'Microsoft.Web/serverfarms@2024-11-01' = {
   name: appPlanName
   location: location
   tags: tags
@@ -38,7 +38,7 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
   }
 }
 
-resource webApp 'Microsoft.Web/sites@2023-12-01' = {
+resource webApp 'Microsoft.Web/sites@2024-11-01' = {
   name: appName
   location: location
   tags: tags

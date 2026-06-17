@@ -5,7 +5,7 @@ namespace StarterApp.API.Models.Requests.Auth;
 public sealed record LoginRequest
 {
     [Required]
-    public string Username { get; init; } = default!;
+    public string UserName { get; init; } = default!;
 
     [Required]
     public string Password { get; init; } = default!;

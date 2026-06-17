@@ -20,6 +20,64 @@ param postgresAdminPassword string
 @description('App Service plan SKU name (e.g. B1, B2, S1, P1v3).')
 param appServiceSku string = 'B1'
 
+@description('PostgreSQL flexible server compute SKU name (e.g. Standard_B1ms, Standard_D2s_v3).')
+param postgresSkuName string = 'Standard_B1ms'
+
+@description('PostgreSQL flexible server compute tier.')
+@allowed([
+  'Burstable'
+  'GeneralPurpose'
+  'MemoryOptimized'
+])
+param postgresSkuTier string = 'Burstable'
+
+@description('PostgreSQL flexible server storage size in GB.')
+@allowed([
+  32
+  64
+  128
+  256
+  512
+  1024
+  2048
+  4096
+  8192
+  16384
+])
+param postgresStorageSizeGB int = 32
+
+@description('PostgreSQL automated backup retention in days (7–35).')
+@minValue(7)
+@maxValue(35)
+param postgresBackupRetentionDays int = 7
+
+@description('PostgreSQL high availability mode.')
+@allowed([
+  'Disabled'
+  'SameZone'
+  'ZoneRedundant'
+])
+param postgresHighAvailabilityMode string = 'Disabled'
+
+@description('Log Analytics workspace data retention in days (30–730).')
+@minValue(30)
+@maxValue(730)
+param logAnalyticsRetentionInDays int = 30
+
+@description('Application Insights data retention in days.')
+@allowed([
+  30
+  60
+  90
+  120
+  180
+  270
+  365
+  550
+  730
+])
+param appInsightsRetentionInDays int = 90
+
 @description('Additional resource tags merged over the defaults (environment, project, managedBy).')
 param tags object = {}
 
@@ -43,6 +101,7 @@ module logAnalytics 'modules/logAnalytics.bicep' = {
     namePrefix: namePrefix
     environment: environment
     location: location
+    retentionInDays: logAnalyticsRetentionInDays
     tags: resolvedTags
   }
 }
@@ -55,6 +114,7 @@ module appInsights 'modules/appInsights.bicep' = {
     environment: environment
     location: location
     logAnalyticsWorkspaceId: logAnalytics.outputs.workspaceId
+    retentionInDays: appInsightsRetentionInDays
     tags: resolvedTags
   }
 }
@@ -79,6 +139,11 @@ module postgres 'modules/postgres.bicep' = {
     location: location
     adminLogin: postgresAdminLogin
     adminPassword: postgresAdminPassword
+    skuName: postgresSkuName
+    skuTier: postgresSkuTier
+    storageSizeGB: postgresStorageSizeGB
+    backupRetentionDays: postgresBackupRetentionDays
+    highAvailabilityMode: postgresHighAvailabilityMode
     tags: resolvedTags
   }
 }

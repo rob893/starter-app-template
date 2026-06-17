@@ -7,12 +7,17 @@ param environment string
 @description('Azure region for the Log Analytics workspace.')
 param location string
 
+@description('Data retention in days (30–730).')
+@minValue(30)
+@maxValue(730)
+param retentionInDays int = 30
+
 @description('Tags to apply to the workspace.')
 param tags object = {}
 
 var laName = '${namePrefix}-la-${environment}'
 
-resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
+resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2025-02-01' = {
   name: laName
   location: location
   tags: tags
@@ -20,7 +25,7 @@ resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09
     sku: {
       name: 'PerGB2018'
     }
-    retentionInDays: 30
+    retentionInDays: retentionInDays
     features: {
       enableLogAccessUsingOnlyResourcePermissions: true
     }
@@ -30,4 +35,3 @@ resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09
 }
 
 output workspaceId string = logAnalyticsWorkspace.id
-output workspaceName string = logAnalyticsWorkspace.name

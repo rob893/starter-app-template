@@ -39,34 +39,15 @@ jobs:
   build:
     name: Build UI
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: starter-app-ui
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Build & test UI
+        uses: ./.github/actions/build-test-ui
         with:
-          node-version: '24'
-          cache: 'npm'
-          cache-dependency-path: starter-app-ui/package-lock.json
-
-      - name: Install packages
-        run: npm ci
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Test
-        run: npm run test
-
-      - name: Build
-        run: npm run build
-        env:
-          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          vite-api-base-url: ${{ vars.VITE_API_BASE_URL }}
 
       # Path is relative to workspace root; working-directory default does not apply to `uses` steps
       - name: Upload Pages artifact

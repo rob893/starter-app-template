@@ -2,6 +2,7 @@ using System;
 using System.Globalization;
 using System.Linq;
 using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 using StarterApp.API.Constants;
 using StarterApp.API.Data.Repositories;
@@ -67,6 +68,7 @@ public sealed class AuthController : ServiceControllerBase
     /// Registers a new user.
     /// </summary>
     /// <param name="registerUserRequest">The register request object.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>The user object and tokens.</returns>
     /// <response code="201">The user object and tokens.</response>
     /// <response code="400">If the request is invalid.</response>
@@ -75,7 +77,7 @@ public sealed class AuthController : ServiceControllerBase
     [AllowAnonymous]
     [HttpPost("register", Name = nameof(RegisterAsync))]
     [ProducesResponseType(StatusCodes.Status201Created)]
-    public async Task<ActionResult<LoginResponse>> RegisterAsync([FromBody] RegisterUserRequest registerUserRequest)
+    public async Task<ActionResult<LoginResponse>> RegisterAsync([FromBody] RegisterUserRequest registerUserRequest, CancellationToken cancellationToken)
     {
         if (registerUserRequest == null)
         {
@@ -84,16 +86,16 @@ public sealed class AuthController : ServiceControllerBase
 
         var user = registerUserRequest.ToEntity();
 
-        var result = await this.userRepository.CreateUserWithPasswordAsync(user, registerUserRequest.Password, this.HttpContext.RequestAborted);
+        var result = await this.userRepository.CreateUserWithPasswordAsync(user, registerUserRequest.Password, cancellationToken);
 
         if (!result.Succeeded)
         {
             return this.BadRequest([.. result.Errors.Select(e => e.Description)]);
         }
 
-        var token = await this.GenerateAndSaveAccessAndRefreshTokensAsync(user, registerUserRequest.DeviceId);
+        var token = await this.GenerateAndSaveAccessAndRefreshTokensAsync(user, registerUserRequest.DeviceId, cancellationToken);
 
-        await this.SendConfirmEmailLink(user);
+        await this.SendConfirmEmailLink(user, cancellationToken);
 
         var userToReturn = UserDto.FromEntity(user);
 
@@ -115,6 +117,7 @@ public sealed class AuthController : ServiceControllerBase
     /// Logs the user in.
     /// </summary>
     /// <param name="loginRequest">The login request object.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>The user object and tokens.</returns>
     /// <response code="200">The user object and tokens.</response>
     /// <response code="400">If the request is invalid.</response>
@@ -124,29 +127,29 @@ public sealed class AuthController : ServiceControllerBase
     [AllowAnonymous]
     [HttpPost("login", Name = nameof(LoginAsync))]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task<ActionResult<LoginResponse>> LoginAsync([FromBody] LoginRequest loginRequest)
+    public async Task<ActionResult<LoginResponse>> LoginAsync([FromBody] LoginRequest loginRequest, CancellationToken cancellationToken)
     {
         if (loginRequest == null)
         {
             return this.BadRequest();
         }
 
-        var user = await this.userRepository.GetByUsernameAsync(loginRequest.Username, [user => user.RefreshTokens], this.HttpContext.RequestAborted)
-            ?? await this.userRepository.GetByEmailAsync(loginRequest.Username, [user => user.RefreshTokens], this.HttpContext.RequestAborted);
+        var user = await this.userRepository.GetByUsernameAsync(loginRequest.UserName, [user => user.RefreshTokens], cancellationToken)
+            ?? await this.userRepository.GetByEmailAsync(loginRequest.UserName, [user => user.RefreshTokens], cancellationToken);
 
         if (user == null)
         {
             return this.Unauthorized("Invalid username or password.");
         }
 
-        var result = await this.userRepository.CheckPasswordAsync(user, loginRequest.Password, this.HttpContext.RequestAborted);
+        var result = await this.userRepository.CheckPasswordAsync(user, loginRequest.Password, cancellationToken);
 
         if (!result)
         {
             return this.Unauthorized("Invalid username or password.");
         }
 
-        var token = await this.GenerateAndSaveAccessAndRefreshTokensAsync(user, loginRequest.DeviceId);
+        var token = await this.GenerateAndSaveAccessAndRefreshTokensAsync(user, loginRequest.DeviceId, cancellationToken);
 
         var userToReturn = UserDto.FromEntity(user);
 
@@ -162,6 +165,7 @@ public sealed class AuthController : ServiceControllerBase
     /// Logs the user in using Google OAuth authorization code (similar to GitHub flow).
     /// </summary>
     /// <param name="loginRequest">The login request object.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>The user object and tokens.</returns>
     /// <response code="200">If the user was logged in.</response>
     /// <response code="400">If the request is invalid.</response>
@@ -171,7 +175,7 @@ public sealed class AuthController : ServiceControllerBase
     [AllowAnonymous]
     [HttpPost("login/google", Name = nameof(LoginGoogleAsync))]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task<ActionResult<LoginResponse>> LoginGoogleAsync([FromBody] OAuthCodeLoginRequest loginRequest)
+    public async Task<ActionResult<LoginResponse>> LoginGoogleAsync([FromBody] OAuthCodeLoginRequest loginRequest, CancellationToken cancellationToken)
     {
         try
         {
@@ -180,23 +184,23 @@ public sealed class AuthController : ServiceControllerBase
                 return this.BadRequest("Request body cannot be null.");
             }
 
-            var idToken = await this.googleOAuthService.ExchangeCodeForGoogleIdTokenAsync(loginRequest.Code, this.HttpContext.RequestAborted);
+            var idToken = await this.googleOAuthService.ExchangeCodeForGoogleIdTokenAsync(loginRequest.Code, cancellationToken);
 
             if (string.IsNullOrWhiteSpace(idToken))
             {
                 return this.Unauthorized("Invalid Google authorization code.");
             }
 
-            var validatedToken = await this.googleOAuthService.ValidateIdTokenAsync(idToken, this.HttpContext.RequestAborted);
+            var validatedToken = await this.googleOAuthService.ValidateIdTokenAsync(idToken, cancellationToken);
 
-            var user = await this.userRepository.GetByLinkedAccountAsync(validatedToken.Subject, LinkedAccountType.Google, [user => user.RefreshTokens], this.HttpContext.RequestAborted);
+            var user = await this.userRepository.GetByLinkedAccountAsync(validatedToken.Subject, LinkedAccountType.Google, [user => user.RefreshTokens], cancellationToken);
 
             if (user == null)
             {
                 // Try to find user by email if no linked account exists
                 if (!string.IsNullOrWhiteSpace(validatedToken.Email))
                 {
-                    user = await this.userRepository.GetByEmailAsync(validatedToken.Email, [user => user.RefreshTokens], this.HttpContext.RequestAborted);
+                    user = await this.userRepository.GetByEmailAsync(validatedToken.Email, [user => user.RefreshTokens], cancellationToken);
                 }
 
                 if (user != null)
@@ -210,7 +214,7 @@ public sealed class AuthController : ServiceControllerBase
 
                     user.EmailConfirmed = user.EmailConfirmed || validatedToken.EmailVerified;
 
-                    var updated = await this.userRepository.SaveChangesAsync(this.HttpContext.RequestAborted);
+                    var updated = await this.userRepository.SaveChangesAsync(cancellationToken);
 
                     if (updated == 0)
                     {
@@ -235,7 +239,7 @@ public sealed class AuthController : ServiceControllerBase
                         ]
                     };
 
-                    var createResult = await this.userRepository.CreateUserWithoutPasswordAsync(newUser, this.HttpContext.RequestAborted);
+                    var createResult = await this.userRepository.CreateUserWithoutPasswordAsync(newUser, cancellationToken);
 
                     if (!createResult.Succeeded)
                     {
@@ -247,12 +251,12 @@ public sealed class AuthController : ServiceControllerBase
                     // Optionally send confirmation email if email is not confirmed
                     if (!newUser.EmailConfirmed && !string.IsNullOrWhiteSpace(newUser.Email))
                     {
-                        await this.SendConfirmEmailLink(newUser);
+                        await this.SendConfirmEmailLink(newUser, cancellationToken);
                     }
                 }
             }
 
-            var token = await this.GenerateAndSaveAccessAndRefreshTokensAsync(user, loginRequest.DeviceId);
+            var token = await this.GenerateAndSaveAccessAndRefreshTokensAsync(user, loginRequest.DeviceId, cancellationToken);
             var userToReturn = UserDto.FromEntity(user);
 
             return this.Ok(
@@ -277,6 +281,7 @@ public sealed class AuthController : ServiceControllerBase
     /// Logs the user in using GitHub OAuth credentials.
     /// </summary>
     /// <param name="loginRequest">The login request object.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>The user object and tokens.</returns>
     /// <response code="200">If the user was logged in.</response>
     /// <response code="400">If the request is invalid.</response>
@@ -286,7 +291,7 @@ public sealed class AuthController : ServiceControllerBase
     [AllowAnonymous]
     [HttpPost("login/github", Name = nameof(LoginGitHubAsync))]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task<ActionResult<LoginResponse>> LoginGitHubAsync([FromBody] OAuthCodeLoginRequest loginRequest)
+    public async Task<ActionResult<LoginResponse>> LoginGitHubAsync([FromBody] OAuthCodeLoginRequest loginRequest, CancellationToken cancellationToken)
     {
         try
         {
@@ -295,31 +300,31 @@ public sealed class AuthController : ServiceControllerBase
                 return this.BadRequest("Request body cannot be null.");
             }
 
-            var githubToken = await this.gitHubOAuthService.ExchangeCodeForGithubAccessTokenAsync(loginRequest.Code, this.HttpContext.RequestAborted);
+            var githubToken = await this.gitHubOAuthService.ExchangeCodeForGithubAccessTokenAsync(loginRequest.Code, cancellationToken);
 
             if (string.IsNullOrWhiteSpace(githubToken))
             {
                 return this.Unauthorized("Invalid GitHub code.");
             }
 
-            var gitHubUserInfo = await this.gitHubOAuthService.GetGitHubUser(githubToken, this.HttpContext.RequestAborted);
+            var gitHubUserInfo = await this.gitHubOAuthService.GetGitHubUserAsync(githubToken, cancellationToken);
 
             if (gitHubUserInfo == null || string.IsNullOrWhiteSpace(gitHubUserInfo.Login))
             {
                 return this.Unauthorized("Unable to retrieve GitHub user information.");
             }
 
-            var user = await this.userRepository.GetByLinkedAccountAsync(gitHubUserInfo.Id.ToString(CultureInfo.InvariantCulture), LinkedAccountType.GitHub, [user => user.RefreshTokens], this.HttpContext.RequestAborted);
+            var user = await this.userRepository.GetByLinkedAccountAsync(gitHubUserInfo.Id.ToString(CultureInfo.InvariantCulture), LinkedAccountType.GitHub, [user => user.RefreshTokens], cancellationToken);
 
             if (user == null)
             {
                 var gitHubEmail = string.IsNullOrWhiteSpace(gitHubUserInfo.Email)
-                    ? (await this.gitHubOAuthService.GetGitHubEmailsAsync(githubToken, this.HttpContext.RequestAborted)).FirstOrDefault(e => e.Primary && e.Verified)?.Email
+                    ? (await this.gitHubOAuthService.GetGitHubEmailsAsync(githubToken, cancellationToken)).FirstOrDefault(e => e.Primary && e.Verified)?.Email
                     : gitHubUserInfo.Email;
 
                 if (!string.IsNullOrWhiteSpace(gitHubEmail))
                 {
-                    user = await this.userRepository.GetByEmailAsync(gitHubEmail, [user => user.RefreshTokens], this.HttpContext.RequestAborted);
+                    user = await this.userRepository.GetByEmailAsync(gitHubEmail, [user => user.RefreshTokens], cancellationToken);
                 }
 
                 if (user != null)
@@ -332,7 +337,7 @@ public sealed class AuthController : ServiceControllerBase
 
                     user.EmailConfirmed = user.EmailConfirmed || !string.IsNullOrEmpty(gitHubEmail);
 
-                    var updated = await this.userRepository.SaveChangesAsync(this.HttpContext.RequestAborted);
+                    var updated = await this.userRepository.SaveChangesAsync(cancellationToken);
 
                     if (updated == 0)
                     {
@@ -356,7 +361,7 @@ public sealed class AuthController : ServiceControllerBase
                     ]
                     };
 
-                    var createResult = await this.userRepository.CreateUserWithoutPasswordAsync(newUser, this.HttpContext.RequestAborted);
+                    var createResult = await this.userRepository.CreateUserWithoutPasswordAsync(newUser, cancellationToken);
 
                     if (!createResult.Succeeded)
                     {
@@ -368,12 +373,12 @@ public sealed class AuthController : ServiceControllerBase
                     // Optionally send confirmation email if email is not confirmed
                     if (!newUser.EmailConfirmed && !string.IsNullOrWhiteSpace(newUser.Email))
                     {
-                        await this.SendConfirmEmailLink(newUser);
+                        await this.SendConfirmEmailLink(newUser, cancellationToken);
                     }
                 }
             }
 
-            var token = await this.GenerateAndSaveAccessAndRefreshTokensAsync(user, loginRequest.DeviceId);
+            var token = await this.GenerateAndSaveAccessAndRefreshTokensAsync(user, loginRequest.DeviceId, cancellationToken);
             var userToReturn = UserDto.FromEntity(user);
 
             return this.Ok(
@@ -451,6 +456,7 @@ public sealed class AuthController : ServiceControllerBase
     /// <summary>
     /// Logs the user out by revoking all refresh tokens and clearing the refresh token cookie.
     /// </summary>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>No content.</returns>
     /// <response code="204">No content.</response>
     /// <response code="400">If the request is invalid.</response>
@@ -459,21 +465,21 @@ public sealed class AuthController : ServiceControllerBase
     /// <response code="504">If the server took too long to respond.</response>
     [HttpPost("logout", Name = nameof(LogoutAsync))]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    public async Task<ActionResult> LogoutAsync()
+    public async Task<ActionResult> LogoutAsync(CancellationToken cancellationToken)
     {
         if (!this.User.TryGetUserId(out var userId) || userId == null)
         {
             return this.Unauthorized("You must be logged in to log out.");
         }
 
-        var user = await this.userRepository.GetByIdAsync(userId.Value, [u => u.RefreshTokens], track: true, this.HttpContext.RequestAborted);
+        var user = await this.userRepository.GetByIdAsync(userId.Value, [u => u.RefreshTokens], track: true, cancellationToken);
 
         if (user == null)
         {
             return this.NotFound("User not found.");
         }
 
-        await this.jwtTokenService.RevokeAllRefreshTokensForUserAsync(user, this.HttpContext.RequestAborted);
+        await this.jwtTokenService.RevokeAllRefreshTokensForUserAsync(user, cancellationToken);
         this.Response.Cookies.Delete(CookieKeys.RefreshToken, new CookieOptions
         {
             HttpOnly = true,
@@ -490,6 +496,7 @@ public sealed class AuthController : ServiceControllerBase
     /// Refreshes a user's access token. Refresh token is stored in a cookie.
     /// </summary>
     /// <param name="refreshTokenRequest">The refresh token request.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>A new set of tokens.</returns>
     /// <response code="200">If the token was refreshed.</response>
     /// <response code="400">If the request is invalid.</response>
@@ -499,7 +506,7 @@ public sealed class AuthController : ServiceControllerBase
     [AllowAnonymous]
     [HttpPost("refreshToken", Name = nameof(RefreshTokenAsync))]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task<ActionResult> RefreshTokenAsync([FromBody] RefreshTokenRequest refreshTokenRequest)
+    public async Task<ActionResult> RefreshTokenAsync([FromBody] RefreshTokenRequest refreshTokenRequest, CancellationToken cancellationToken)
     {
         if (refreshTokenRequest == null)
         {
@@ -524,14 +531,14 @@ public sealed class AuthController : ServiceControllerBase
         var (isTokenEligibleForRefresh, user) = await this.jwtTokenService.IsTokenEligibleForRefreshAsync(
             refreshToken,
             refreshTokenRequest.DeviceId,
-            this.HttpContext.RequestAborted);
+            cancellationToken);
 
         if (!isTokenEligibleForRefresh || user == null)
         {
             return this.Unauthorized("Invalid token.");
         }
 
-        var token = await this.GenerateAndSaveAccessAndRefreshTokensAsync(user, refreshTokenRequest.DeviceId, updateLastLogin: false);
+        var token = await this.GenerateAndSaveAccessAndRefreshTokensAsync(user, refreshTokenRequest.DeviceId, cancellationToken, updateLastLogin: false);
 
         return this.Ok(
             new RefreshTokenResponse
@@ -542,7 +549,7 @@ public sealed class AuthController : ServiceControllerBase
 
 
 
-    private async Task<string> GenerateAndSaveAccessAndRefreshTokensAsync(User user, string deviceId, bool updateLastLogin = true)
+    private async Task<string> GenerateAndSaveAccessAndRefreshTokensAsync(User user, string deviceId, CancellationToken cancellationToken, bool updateLastLogin = true)
     {
         ArgumentNullException.ThrowIfNull(user);
         ArgumentException.ThrowIfNullOrWhiteSpace(deviceId);
@@ -553,7 +560,7 @@ public sealed class AuthController : ServiceControllerBase
         }
 
         var token = this.jwtTokenService.GenerateJwtTokenForUser(user);
-        var refreshToken = await this.jwtTokenService.GenerateAndSaveRefreshTokenForUserAsync(user, deviceId, this.HttpContext.RequestAborted);
+        var refreshToken = await this.jwtTokenService.GenerateAndSaveRefreshTokenForUserAsync(user, deviceId, cancellationToken);
 
         // Set the refresh token cookie
         this.Response.Cookies.Append(CookieKeys.RefreshToken, refreshToken, new CookieOptions
@@ -581,7 +588,7 @@ public sealed class AuthController : ServiceControllerBase
         return token;
     }
 
-    private async Task SendConfirmEmailLink(User user)
+    private async Task SendConfirmEmailLink(User user, CancellationToken cancellationToken)
     {
         if (user == null || string.IsNullOrWhiteSpace(user.Email))
         {
@@ -589,9 +596,9 @@ public sealed class AuthController : ServiceControllerBase
         }
 
         var emailToken = await this.userRepository.UserManager.GenerateEmailConfirmationTokenAsync(user);
-        await this.emailService.SendEmailConfirmationToUserAsync(user, emailToken, this.HttpContext.RequestAborted);
+        await this.emailService.SendEmailConfirmationToUserAsync(user, emailToken, cancellationToken);
 
         user.LastEmailConfirmationSent = DateTimeOffset.UtcNow;
-        await this.userRepository.SaveChangesAsync(this.HttpContext.RequestAborted);
+        await this.userRepository.SaveChangesAsync(cancellationToken);
     }
 }

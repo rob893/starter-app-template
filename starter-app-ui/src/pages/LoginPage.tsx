@@ -24,7 +24,7 @@ export function LoginPage() {
     setIsLoading(true);
 
     try {
-      await login({ username, password });
+      await login({ userName: username, password });
       navigate(from, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Login failed'));
