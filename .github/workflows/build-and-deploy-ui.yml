@@ -16,6 +16,8 @@
 name: Build and Deploy UI
 
 on:
+  # NOTE: the push trigger is intentionally commented out so this *template* repo does not try to deploy.
+  # Uncomment it after configuring the required secrets/variables (see README -> "Using this template").
   # push:
   #   branches:
   #     - main

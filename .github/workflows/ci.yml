@@ -1,6 +1,8 @@
 name: CI
 
 on:
+  # NOTE: PR/push triggers are intentionally commented out so this *template* repo's own CI stays idle.
+  # When you use the template, uncomment them (see README -> "Using this template").
   workflow_dispatch:
   # pull_request:
   # push:
@@ -26,7 +28,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json', '**/*.csproj') }}
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
 

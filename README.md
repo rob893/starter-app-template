@@ -20,7 +20,8 @@ Click **“Use this template”** on GitHub to start a new project, then follow
   sample authenticated page that calls the API and pages through data.
 - **CI/CD**: GitHub Actions (PR validation, API → App Service via OIDC, UI → GitHub Pages) and
   **Azure Bicep** that provisions the whole environment.
-- Sample **Hello World** (v1 + v2) and a **Notes** resource demonstrating the full stack end-to-end.
+- Sample **Hello World** (v1 + v2) and a **Notes** resource demonstrating the full stack end-to-end
+  (these are disposable demos — see [Using this template](#using-this-template) to remove them).
 
 ## Tech stack
 
@@ -156,6 +157,23 @@ configuration, base-path notes) are in **[`CI/README.md`](./CI/README.md)**. In 
 3. Update `LICENSE` copyright, this `README`, and `AGENTS.md`.
 4. Set your real values in `appsettings.Local.json` / Key Vault and the `.env` files.
 5. Configure OAuth apps (Google, GitHub) with redirect URIs pointing at `/api/v1/auth/{provider}/callback`.
+6. **Enable CI/CD.** The GitHub Actions triggers are intentionally commented out so this template repo
+   stays idle. Once your secrets/variables are configured, uncomment the `pull_request`/`push` triggers
+   in `.github/workflows/ci.yml`, `build-and-deploy-api.yml`, and `build-and-deploy-ui.yml`.
+7. **Remove the sample code.** The `Hello` endpoints and the `Notes` resource are demos that exercise the
+   full stack — delete them once you start building your own features:
+   - **Hello:** `StarterApp.API/Controllers/V1/HelloController.cs`, `Controllers/V2/HelloController.cs`,
+     `Models/Responses/HelloResponse.cs`, and `StarterApp.API.Tests/Controllers/HelloControllerTests.cs`.
+   - **Notes:** `Controllers/V1/NotesController.cs`, `Services/Domain/NoteService.cs` (+ `INoteService.cs`),
+     `Data/Repositories/NoteRepository.cs` (+ `INoteRepository.cs`), `Models/Entities/Note.cs`,
+     `Models/Dtos/NoteDto.cs`, `Models/Requests/CreateNoteRequest.cs` / `UpdateNoteRequest.cs`,
+     `Models/QueryParameters/NoteQueryParameters.cs`, and `StarterApp.API.Tests/Services/NoteServiceTests.cs`.
+   - Then remove their wiring: the `DbSet<Note>` + `builder.Entity<Note>` config in `Data/DataContext.cs`,
+     the `Notes` navigation in `Models/Entities/User.cs`, the `INoteService`/`INoteRepository` registrations
+     in `ApplicationStartup/ServiceCollectionExtensions/`, any Notes seeding in `Data/DatabaseSeeder.cs`,
+     and the Notes table in the EF migration (or regenerate the initial migration).
+   - **UI:** replace `starter-app-ui/src/pages/HomePage.tsx` and remove the `notes`/`hello` helpers in
+     `src/hooks/api.ts`, `src/services/api.ts`, and `src/types/models.ts`.
 
 ## License
 

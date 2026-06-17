@@ -82,22 +82,26 @@ public sealed class UserRepository : Repository<User, CursorPaginationQueryParam
     /// <inheritdoc />
     public Task<User?> GetByUsernameAsync(string username, CancellationToken cancellationToken = default)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(username);
+        var normalizedUsername = username.ToUpperInvariant();
+
         IQueryable<User> query = this.Context.Users;
         query = this.AddIncludes(query);
 
-        return query.OrderBy(e => e.Id).FirstOrDefaultAsync(user => user.UserName == username, cancellationToken);
+        return query.OrderBy(e => e.Id).FirstOrDefaultAsync(user => user.NormalizedUserName == normalizedUsername, cancellationToken);
     }
 
     /// <inheritdoc />
     public Task<User?> GetByUsernameAsync(string username, Expression<Func<User, object>>[] includes, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(username);
+        var normalizedUsername = username.ToUpperInvariant();
 
         IQueryable<User> query = this.Context.Users;
         query = this.AddIncludes(query);
         query = includes.Aggregate(query, (current, includeProperty) => current.Include(includeProperty));
 
-        return query.OrderBy(e => e.Id).FirstOrDefaultAsync(user => user.UserName == username, cancellationToken);
+        return query.OrderBy(e => e.Id).FirstOrDefaultAsync(user => user.NormalizedUserName == normalizedUsername, cancellationToken);
     }
 
     /// <inheritdoc />
