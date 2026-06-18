@@ -195,13 +195,11 @@ public sealed class JwtTokenServiceTests
     }
 
     [Fact]
-    public void GenerateJwtTokenForUser_ShortSecret_ThrowsArgumentException()
+    public void Constructor_ShortSecret_ThrowsArgumentException()
     {
         var settings = BuildSettings(secret: "too-short-secret");
-        var sut = new JwtTokenService(this.userRepositoryMock.Object, Options.Create(settings));
-        var user = BuildUser();
 
-        Assert.Throws<ArgumentException>(() => sut.GenerateJwtTokenForUser(user));
+        Assert.Throws<ArgumentException>(() => new JwtTokenService(this.userRepositoryMock.Object, Options.Create(settings)));
     }
 
     [Fact]

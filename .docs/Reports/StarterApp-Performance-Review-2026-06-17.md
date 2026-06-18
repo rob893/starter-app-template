@@ -59,22 +59,22 @@ The two genuinely larger refactors (the auth-context split P-FE-09 and infinite-
 | 1 | P-BE-02 | ✅ | Backend (.NET API) | Missing index on `RefreshTokens.DeviceId` | 4 | 5 | 1 | 9.00 | Critical |
 | 2 | P-BE-08 | ✅ | Backend (.NET API) | `GetByUsernameAsync` filters on non-indexed `UserName` column | 3 | 5 | 1 | 8.00 | High |
 | 3 | P-FE-02 | ✅ | Frontend (React SPA) | `ReactQueryDevtools` statically imported — bundled in production | 3 | 5 | 1 | 8.00 | High |
-| 4 | P-FE-08 | ☐ | Frontend (React SPA) | Artificial 1.3 s delays in OAuth callback flow | 3 | 4 | 1 | 7.00 | High |
+| 4 | P-FE-08 | n/a | Frontend (React SPA) | Artificial 1.3 s delays in OAuth callback flow | 3 | 4 | 1 | 7.00 | High |
 | 5 | P-BE-03 | ✅ | Backend (.NET API) | `JsonSerializerOptions` instances created per request in OAuth services | 2 | 4 | 1 | 6.00 | Medium |
 | 6 | P-BE-01 | n/a | Backend (.NET API) | `NoteService.GetNotesAsync` — all user notes loaded to memory; client-side title filter and pagination | 5 | 5 | 2 | 5.00 | Critical |
 | 7 | P-FE-06 | ✅ | Frontend (React SPA) | No global `staleTime` default — new queries silently refetch on every mount | 2 | 3 | 1 | 5.00 | Medium |
 | 8 | P-FE-01 | ✅ | Frontend (React SPA) | No route-level code splitting — all pages in the initial bundle | 4 | 5 | 2 | 4.50 | Critical |
 | 9 | P-BE-04 | ✅ | Backend (.NET API) | `GetRefreshTokensForDeviceAsync` over-fetches: loads all user tokens plus full role hierarchy | 3 | 5 | 2 | 4.00 | High |
-| 10 | P-FE-07 | ☐ | Frontend (React SPA) | `allNotes` derived array recomputed on every render | 2 | 2 | 1 | 4.00 | Low |
+| 10 | P-FE-07 | ✅ | Frontend (React SPA) | `allNotes` derived array recomputed on every render | 2 | 2 | 1 | 4.00 | Low |
 | 11 | P-FE-03 | ✅ | Frontend (React SPA) | `react-icons` in `dependencies` but never imported | 1 | 3 | 1 | 4.00 | Low |
-| 12 | P-BE-05 | ☐ | Backend (.NET API) | `UserRepository.AddIncludes` always eagerly loads `UserRoles → Role` and `LinkedAccounts` | 3 | 4 | 2 | 3.50 | High |
-| 13 | P-BE-06 | ☐ | Backend (.NET API) | `AddDbContext` instead of `AddDbContextPool` | 3 | 4 | 2 | 3.50 | High |
-| 14 | P-FE-05 | ☐ | Frontend (React SPA) | `handleLoadMore` bypasses React Query — no caching on paginated pages | 3 | 3 | 2 | 3.00 | Medium |
-| 15 | P-BE-07 | ☐ | Backend (.NET API) | `AuthController.LoginAsync` — sequential username-then-email DB lookups | 2 | 4 | 2 | 3.00 | Medium |
-| 16 | P-FE-04 | ☐ | Frontend (React SPA) | Vite build config has no `manualChunks` / vendor-chunk strategy | 2 | 3 | 2 | 2.50 | Medium |
-| 17 | P-BE-09 | ☐ | Backend (.NET API) | `GetByLinkedAccountAsync` — two round-trips where a single JOIN suffices | 2 | 3 | 2 | 2.50 | Low |
-| 18 | P-BE-10 | ☐ | Backend (.NET API) | `JwtTokenService` — `SymmetricSecurityKey` and `SigningCredentials` recreated on every token generation | 2 | 3 | 2 | 2.50 | Low |
-| 19 | P-FE-09 | ☐ | Frontend (React SPA) | Auth context over-subscription — `isLoading` changes re-render all consumers | 2 | 3 | 3 | 1.67 | Medium |
+| 12 | P-BE-05 | n/a | Backend (.NET API) | `UserRepository.AddIncludes` always eagerly loads `UserRoles → Role` and `LinkedAccounts` | 3 | 4 | 2 | 3.50 | High |
+| 13 | P-BE-06 | ✅ | Backend (.NET API) | `AddDbContext` instead of `AddDbContextPool` | 3 | 4 | 2 | 3.50 | High |
+| 14 | P-FE-05 | ✅ | Frontend (React SPA) | `handleLoadMore` bypasses React Query — no caching on paginated pages | 3 | 3 | 2 | 3.00 | Medium |
+| 15 | P-BE-07 | ✅ | Backend (.NET API) | `AuthController.LoginAsync` — sequential username-then-email DB lookups | 2 | 4 | 2 | 3.00 | Medium |
+| 16 | P-FE-04 | ✅ | Frontend (React SPA) | Vite build config has no `manualChunks` / vendor-chunk strategy | 2 | 3 | 2 | 2.50 | Medium |
+| 17 | P-BE-09 | ✅ | Backend (.NET API) | `GetByLinkedAccountAsync` — two round-trips where a single JOIN suffices | 2 | 3 | 2 | 2.50 | Low |
+| 18 | P-BE-10 | ✅ | Backend (.NET API) | `JwtTokenService` — `SymmetricSecurityKey` and `SigningCredentials` recreated on every token generation | 2 | 3 | 2 | 2.50 | Low |
+| 19 | P-FE-09 | n/a | Frontend (React SPA) | Auth context over-subscription — `isLoading` changes re-render all consumers | 2 | 3 | 3 | 1.67 | Medium |
 
 ---
 
@@ -252,6 +252,8 @@ The two genuinely larger refactors (the auth-context split P-FE-09 and infinite-
 
 #### P-BE-05: `UserRepository.AddIncludes` unconditionally eager-loads `UserRoles → Role` and `LinkedAccounts`
 
+> **Status (2026-06-17): n/a — Won't fix (invalid as applied).** On validation, the finding's premise ("most read paths never touch roles or linked accounts") does not hold for this codebase: `UserDto.FromEntity` projects **both** `user.UserRoles.Select(x => x.Role)` and `user.LinkedAccounts`, and essentially every user-returning endpoint (login, register, OAuth, get-user, **and list-users**) returns `UserDto`. So both navigations are genuinely needed on those paths. Moreover, the repository's `includes` mechanism (`Repository.cs`: `includes.Aggregate(q, (c, i) => c.Include(i))`) only supports single-level `Include` and **cannot express `ThenInclude(ur => ur.Role)`**, so removing the default include would require bespoke `.Include().ThenInclude()` queries at every call site and would otherwise silently return empty roles/linked-accounts in API responses. The 3 split queries are intrinsic to building the DTO; removing the defaults is a correctness risk, not a safe optimization, at this template's scale.
+
 - **Severity / Priority:** High / 3.50
 - **Impact / Risk / Effort:** 3 / 4 / 2
 - **Location(s):** `StarterApp.API/Data/Repositories/UserRepository.cs:183-189`
@@ -276,6 +278,8 @@ The two genuinely larger refactors (the auth-context split P-FE-09 and infinite-
 
 #### P-BE-06: `AddDbContext` instead of `AddDbContextPool`
 
+> **Status (2026-06-17): ✅ Fixed** — `DatabaseServiceCollectionExtensions` now uses `AddDbContextPool<DataContext>(…, poolSize: 128)` with the identical options lambda. `DataContext`'s constructor takes only `DbContextOptions<DataContext>`, so it is pool-safe; Identity (`AddEntityFrameworkStores<DataContext>`) still resolves. Eliminates per-request `DataContext`/change-tracker allocation under load.
+
 - **Severity / Priority:** High / 3.50
 - **Impact / Risk / Effort:** 3 / 4 / 2
 - **Location(s):** `StarterApp.API/ApplicationStartup/ServiceCollectionExtensions/DatabaseServiceCollectionExtensions.cs:33`
@@ -298,6 +302,8 @@ The two genuinely larger refactors (the auth-context split P-FE-09 and infinite-
 ---
 
 #### P-BE-07: `AuthController.LoginAsync` — sequential username-then-email DB lookups
+
+> **Status (2026-06-17): ✅ Fixed** — added `UserRepository.GetByUsernameOrEmailAsync`, which normalizes the input and matches `NormalizedUserName == v || NormalizedEmail == v` in a **single** indexed query (with the same eager-loads). `LoginAsync` now calls it once instead of the `GetByUsernameAsync(...) ?? GetByEmailAsync(...)` fallback, so email-based logins no longer pay for two sequential round-trips. The timing-attack mitigation (dummy-hash verify on the not-found path) is preserved.
 
 - **Severity / Priority:** Medium / 3.00
 - **Impact / Risk / Effort:** 2 / 4 / 2
@@ -330,6 +336,8 @@ The two genuinely larger refactors (the auth-context split P-FE-09 and infinite-
 
 #### P-BE-09: `GetByLinkedAccountAsync` — two DB round-trips where a single JOIN query suffices
 
+> **Status (2026-06-17): ✅ Fixed** — rewritten to a single `Users` query using `u => u.LinkedAccounts.Any(la => la.Id == id && la.LinkedAccountType == accountType)` (with the same includes + deterministic `OrderBy(u => u.Id)`), replacing the prior fetch-linked-account-then-fetch-user round-trips. Social logins now resolve the user in one query.
+
 - **Severity / Priority:** Low / 2.50
 - **Impact / Risk / Effort:** 2 / 3 / 2
 - **Location(s):** `StarterApp.API/Data/Repositories/UserRepository.cs:117-131`
@@ -359,6 +367,8 @@ The two genuinely larger refactors (the auth-context split P-FE-09 and infinite-
 ---
 
 #### P-BE-10: `JwtTokenService.GenerateJwtTokenForUser` — `SymmetricSecurityKey` and `SigningCredentials` recreated on every token
+
+> **Status (2026-06-17): ✅ Fixed** — `JwtSecurityTokenHandler` is now a `private static readonly` field, and `SymmetricSecurityKey`/`SigningCredentials` are `private readonly` fields built once in the constructor (where the `KeySize < 512` validation also moved). `GenerateJwtTokenForUser` reuses them, removing per-token allocation of the key/credentials and per-call handler construction. Token output is unchanged.
 
 - **Severity / Priority:** Low / 2.50
 - **Impact / Risk / Effort:** 2 / 3 / 2
@@ -448,6 +458,8 @@ The two genuinely larger refactors (the auth-context split P-FE-09 and infinite-
 ---
 
 #### P-FE-08: Artificial 1.3 s delays in OAuth callback flow
+
+> **Status (2026-06-17): n/a — Won't fix (per maintainer).** The staged `setTimeout` pauses in the OAuth callback are an intentional UX touch and are being kept as-is for this template. Adopters who want the snappier flow can delete the `await new Promise(...)` pauses as described below.
 
 - **Severity / Priority:** High / 7.00
 - **Impact / Risk / Effort:** 3 / 4 / 1
@@ -586,6 +598,8 @@ The two genuinely larger refactors (the auth-context split P-FE-09 and infinite-
 
 #### P-FE-07: `allNotes` derived array recomputed on every render
 
+> **Status (2026-06-17): ✅ Fixed** — `allNotes` in `HomePage` is now wrapped in `useMemo` keyed on `[notesData?.pages]`, so the `flatMap` over accumulated pages no longer re-runs on unrelated re-renders (e.g. create-note form keystrokes).
+
 - **Severity / Priority:** Low / 4.00
 - **Impact / Risk / Effort:** 2 / 2 / 1
 - **Location(s):** `starter-app-ui/src/pages/HomePage.tsx:22–25`
@@ -639,6 +653,8 @@ The two genuinely larger refactors (the auth-context split P-FE-09 and infinite-
 
 #### P-FE-05: `handleLoadMore` bypasses React Query — no caching on subsequent pages
 
+> **Status (2026-06-17): ✅ Already resolved.** `HomePage` now uses `useInfiniteNotes` (TanStack Query `useInfiniteQuery`) with `fetchNextPage()`/`hasNextPage`; the manual `notesApi.getNotes` + local `pages` state path and the unused `useNotesCursorPaginated` dead code are gone. Paginated pages are cached and participate in `['notes']` invalidation.
+
 - **Severity / Priority:** Medium / 3.00
 - **Impact / Risk / Effort:** 3 / 3 / 2
 - **Location(s):** `starter-app-ui/src/pages/HomePage.tsx:31–41`, `starter-app-ui/src/hooks/api.ts:122–141`
@@ -678,6 +694,8 @@ The two genuinely larger refactors (the auth-context split P-FE-09 and infinite-
 ---
 
 #### P-FE-04: Vite build config has no `manualChunks` / vendor-chunk strategy
+
+> **Status (2026-06-17): ✅ Fixed** — added vendor chunk splitting to `vite.config.ts`. This repo runs Vite 8 (Rolldown bundler), where the Rollup object-form `manualChunks` is unsupported/typed function-only, so the equivalent `build.rollupOptions.output.codeSplitting.groups` (regex `test` per group) is used. The build now emits stable `vendor-react`, `vendor-query`, `vendor-ui`, and `vendor-http` chunks, improving long-term browser/CDN cache hits across deploys. The CSP-meta plugin and other config are untouched.
 
 - **Severity / Priority:** Medium / 2.50
 - **Impact / Risk / Effort:** 2 / 3 / 2
@@ -725,6 +743,8 @@ The two genuinely larger refactors (the auth-context split P-FE-09 and infinite-
 ---
 
 #### P-FE-09: Auth context over-subscription — all consumers re-render on `isLoading` changes
+
+> **Status (2026-06-17): n/a — Won't fix (deferred by design).** As the finding itself recommends ("defer until the app has materially more `useAuth()` consumers… only apply if profiling shows measurable render cost"), this is intentionally not implemented. At the template's current scale (3–4 consumers) the single memoized context is clean and correct; splitting into separate state/actions contexts would double provider complexity for no measurable gain.
 
 - **Severity / Priority:** Medium / 1.67
 - **Impact / Risk / Effort:** 2 / 3 / 3

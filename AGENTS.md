@@ -50,7 +50,20 @@ Run from repo root unless noted.
 - `services/axiosConfig.ts`: `X-Correlation-Id`, refresh-token on 401 (`x-token-expired`),
   double-submit CSRF, `withCredentials: true`.
 - API calls in `services/api.ts`, cached/managed via TanStack React Query in `hooks/api.ts`.
+  Always go through the shared `apiClient` (never raw `fetch`); gate authed queries on `isAuthenticated && !isAuthLoading`.
 - Routing uses `HashRouter` (works on GitHub Pages). HeroUI v3 needs no provider; styles via `@heroui/styles`.
+
+## Performance
+
+- **Frontend:** lazy-load routes (`React.lazy` + `Suspense`); gate dev-only tooling behind `import.meta.env.DEV` so it tree-shakes out of prod; set a global React Query `staleTime`; use `useInfiniteQuery` for cursor pagination (don't hand-roll); memoize derived arrays; split vendor chunks in `vite.config.ts` (Vite 8/Rolldown → `build.rollupOptions.output.codeSplitting.groups`).
+- **Backend:** filter on indexed/normalized columns (`NormalizedUserName`/`NormalizedEmail`) and back every hot filter with an index; fetch only the navigations you need and fold sequential lookups into one query; `ExecuteDeleteAsync` for set deletes, `AsSingleQuery()` for small graphs (global default is `SplitQuery`); use `AddDbContextPool`; reuse stateless objects (`static readonly JsonSerializerOptions`, cached JWT key/credentials/handler).
+
+## Security
+
+- FE and BE run on **different origins** — keep everything cross-origin: auth cookies `SameSite=None; Secure; Domain=<CookieDomain>`; the SPA's build-time CSP `<meta>` `connect-src` must include the API origin (`VITE_API_BASE_URL`).
+- OAuth is **backend-initiated**: the server mints a CSPRNG `state` + PKCE verifier bound to an HttpOnly `oauth_flow` cookie and redirects to the provider; callbacks validate `state` with `FixedTimeEquals`.
+- JWT signing secret ≥64 bytes (HMAC-SHA512), validated at startup. Use `CryptographicOperations.FixedTimeEquals` + CSPRNG for tokens/secrets; never log tokens.
+- Trust `X-Forwarded-*` only from configured proxies; honor `X-Forwarded-Prefix` only against an allowlist. Don't surface internal IDs (correlation/trace) to end users in production.
 
 ## Coding Style
 

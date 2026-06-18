@@ -184,8 +184,7 @@ public sealed class AuthController : ServiceControllerBase
             return this.BadRequest();
         }
 
-        var user = await this.userRepository.GetByUsernameAsync(loginRequest.UserName, [user => user.RefreshTokens], cancellationToken)
-            ?? await this.userRepository.GetByEmailAsync(loginRequest.UserName, [user => user.RefreshTokens], cancellationToken);
+        var user = await this.userRepository.GetByUsernameOrEmailAsync(loginRequest.UserName, [user => user.RefreshTokens], cancellationToken);
 
         if (user == null)
         {

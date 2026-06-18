@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, Button, Spinner, Chip } from '@heroui/react';
 import { FormField } from '../components/FormField';
 import { useAuth } from '../hooks/useAuth';
@@ -20,7 +20,10 @@ export function HomePage() {
   const createNote = useCreateNote();
   const deleteNote = useDeleteNote();
 
-  const allNotes: Note[] = (notesData?.pages ?? []).flatMap(page => page.nodes ?? page.edges?.map(e => e.node) ?? []);
+  const allNotes = useMemo<Note[]>(
+    () => (notesData?.pages ?? []).flatMap(page => page.nodes ?? page.edges?.map(e => e.node) ?? []),
+    [notesData?.pages]
+  );
 
   const [noteTitle, setNoteTitle] = useState('');
   const [noteContent, setNoteContent] = useState('');

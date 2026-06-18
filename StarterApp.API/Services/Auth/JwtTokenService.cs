@@ -20,14 +20,29 @@ namespace StarterApp.API.Services.Auth;
 
 public sealed class JwtTokenService : IJwtTokenService
 {
+    private static readonly JwtSecurityTokenHandler tokenHandler = new();
+
     private readonly IUserRepository userRepository;
 
     private readonly AuthenticationSettings authSettings;
+
+    private readonly SymmetricSecurityKey signingKey;
+
+    private readonly SigningCredentials signingCredentials;
 
     public JwtTokenService(IUserRepository userRepository, IOptions<AuthenticationSettings> authSettings)
     {
         this.userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
         this.authSettings = authSettings?.Value ?? throw new ArgumentNullException(nameof(authSettings));
+
+        this.signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(this.authSettings.APISecret));
+
+        if (this.signingKey.KeySize < 512)
+        {
+            throw new ArgumentException("API Secret must be longer");
+        }
+
+        this.signingCredentials = new SigningCredentials(this.signingKey, SecurityAlgorithms.HmacSha512Signature);
     }
 
     public async Task<(bool IsEligible, User? User)> IsTokenEligibleForRefreshAsync(string refreshToken, string deviceId, CancellationToken cancellationToken = default)
@@ -119,26 +134,15 @@ public sealed class JwtTokenService : IJwtTokenService
             }
         }
 
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(this.authSettings.APISecret));
-
-        if (key.KeySize < 512)
-        {
-            throw new ArgumentException("API Secret must be longer");
-        }
-
-        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha512Signature);
-
         var tokenDescriptor = new SecurityTokenDescriptor
         {
             Subject = new ClaimsIdentity(claims),
             Expires = DateTime.UtcNow.AddMinutes(this.authSettings.TokenExpirationTimeInMinutes),
             NotBefore = DateTime.UtcNow,
-            SigningCredentials = creds,
+            SigningCredentials = this.signingCredentials,
             Audience = this.authSettings.TokenAudience,
             Issuer = this.authSettings.TokenIssuer
         };
-
-        var tokenHandler = new JwtSecurityTokenHandler();
 
         var token = tokenHandler.CreateToken(tokenDescriptor);
 

@@ -1,5 +1,5 @@
 import { defineConfig, loadEnv } from 'vite';
-import type { Plugin } from 'vite';
+import type { Plugin, UserConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { buildContentSecurityPolicy } from './src/utils/csp';
@@ -39,6 +39,24 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react(), tailwindcss(), cspMetaPlugin(env.VITE_API_BASE_URL)],
     base: env.VITE_BASE_PATH || '/',
-    publicDir: 'public'
-  };
+    publicDir: 'public',
+    build: {
+      rollupOptions: {
+        output: {
+          // Split stable vendor libraries into their own long-lived chunks so they
+          // stay cacheable across deploys. Vite 8 uses Rolldown, where the object-map
+          // form of `manualChunks` is unsupported; `codeSplitting.groups` is the
+          // equivalent, with each group's `name` becoming the emitted chunk name.
+          codeSplitting: {
+            groups: [
+              { name: 'vendor-react', test: /[\\/]node_modules[\\/](react|react-dom|react-router)[\\/]/ },
+              { name: 'vendor-query', test: /[\\/]node_modules[\\/]@tanstack[\\/]react-query[\\/]/ },
+              { name: 'vendor-ui', test: /[\\/]node_modules[\\/]@heroui[\\/](react|styles)[\\/]/ },
+              { name: 'vendor-http', test: /[\\/]node_modules[\\/](axios|jwt-decode)[\\/]/ }
+            ]
+          }
+        }
+      }
+    }
+  } satisfies UserConfig;
 });

@@ -30,7 +30,7 @@ public static class DatabaseServiceCollectionExtensions
         dataSourceBuilder.EnableDynamicJson().ConfigureJsonOptions(dbJsonOptions); ;
         var dataSource = dataSourceBuilder.Build();
 
-        services.AddDbContext<DataContext>(
+        services.AddDbContextPool<DataContext>(
             dbContextOptions =>
             {
                 dbContextOptions
@@ -49,7 +49,8 @@ public static class DatabaseServiceCollectionExtensions
                 {
                     dbContextOptions.EnableSensitiveDataLogging();
                 }
-            }
+            },
+            poolSize: 128
         );
 
         services.AddTransient<IDatabaseSeeder, DatabaseSeeder>();

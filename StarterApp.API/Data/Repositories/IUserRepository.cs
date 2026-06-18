@@ -33,6 +33,17 @@ public interface IUserRepository : IRepository<User, CursorPaginationQueryParame
     /// <summary>Finds a user by email with additional includes.</summary>
     Task<User?> GetByEmailAsync(string email, Expression<Func<User, object>>[] includes, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Finds a user by either username or email in a single query, applying the default includes plus
+    /// any additional includes. The input is normalized and matched against both the normalized username
+    /// and normalized email, using the existing indexes on those columns.
+    /// </summary>
+    /// <param name="usernameOrEmail">The username or email to search for.</param>
+    /// <param name="includes">Additional navigation properties to eager-load.</param>
+    /// <param name="cancellationToken">A token to cancel the asynchronous operation.</param>
+    /// <returns>The matching tracked user, or <c>null</c> if none is found.</returns>
+    Task<User?> GetByUsernameOrEmailAsync(string usernameOrEmail, Expression<Func<User, object>>[] includes, CancellationToken cancellationToken = default);
+
     /// <summary>Finds a user by a linked OAuth account.</summary>
     Task<User?> GetByLinkedAccountAsync(string id, LinkedAccountType accountType, Expression<Func<User, object>>[] includes, CancellationToken cancellationToken = default);
 

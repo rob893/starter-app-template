@@ -118,21 +118,28 @@ public sealed class UserRepository : Repository<User, CursorPaginationQueryParam
     }
 
     /// <inheritdoc />
+    public Task<User?> GetByUsernameOrEmailAsync(string usernameOrEmail, Expression<Func<User, object>>[] includes, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(usernameOrEmail);
+        var normalized = usernameOrEmail.ToUpperInvariant();
+
+        return this.FirstOrDefaultAsync(
+            user => user.NormalizedUserName == normalized || user.NormalizedEmail == normalized,
+            includes,
+            track: true,
+            cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task<User?> GetByLinkedAccountAsync(string id, LinkedAccountType accountType, Expression<Func<User, object>>[] includes, CancellationToken cancellationToken = default)
     {
-        var linkedAccount = await this.Context.LinkedAccounts.FirstOrDefaultAsync(
-            account => account.Id == id && account.LinkedAccountType == accountType, cancellationToken);
-
-        if (linkedAccount == null)
-        {
-            return null;
-        }
-
         IQueryable<User> query = this.Context.Users;
         query = this.AddIncludes(query);
         query = includes.Aggregate(query, (current, includeProperty) => current.Include(includeProperty));
 
-        return await query.OrderBy(e => e.Id).FirstOrDefaultAsync(user => user.Id == linkedAccount.UserId, cancellationToken);
+        return await query.OrderBy(u => u.Id).FirstOrDefaultAsync(
+            user => user.LinkedAccounts.Any(la => la.Id == id && la.LinkedAccountType == accountType),
+            cancellationToken);
     }
 
     /// <inheritdoc />
