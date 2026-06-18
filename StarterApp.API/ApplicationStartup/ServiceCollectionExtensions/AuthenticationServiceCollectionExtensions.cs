@@ -38,6 +38,15 @@ public static class AuthenticationServiceCollectionExtensions
         var authSettings = config.GetSection(ConfigurationKeys.Authentication)?.Get<AuthenticationSettings>() ??
             throw new InvalidOperationException($"Missing {ConfigurationKeys.Authentication} section in configuration.");
 
+        // HMAC-SHA512 requires a key of at least 512 bits (64 bytes). Validate the signing secret here
+        // so a too-short secret fails fast at startup on the validation path too — not only when a token
+        // is first issued (JwtTokenService) — preventing an under-strength, forgeable key from deploying.
+        if (string.IsNullOrEmpty(authSettings.APISecret) || Encoding.UTF8.GetByteCount(authSettings.APISecret) < 64)
+        {
+            throw new InvalidOperationException(
+                $"{ConfigurationKeys.Authentication}:{nameof(AuthenticationSettings.APISecret)} must be at least 64 bytes (512 bits) for HMAC-SHA512 token signing.");
+        }
+
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
             {

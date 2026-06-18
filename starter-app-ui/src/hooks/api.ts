@@ -12,23 +12,23 @@ export const queryKeys = {
 
 // Hello hooks
 export function useHelloV1() {
-  const { isLoading: isAuthLoading } = useAuth();
+  const { isLoading: isAuthLoading, isAuthenticated } = useAuth();
 
   return useQuery({
     queryKey: queryKeys.helloV1,
     queryFn: () => helloApi.getHelloV1(),
-    enabled: !isAuthLoading,
+    enabled: isAuthenticated && !isAuthLoading,
     staleTime: 60 * 1000
   });
 }
 
 export function useHelloV2() {
-  const { isLoading: isAuthLoading } = useAuth();
+  const { isLoading: isAuthLoading, isAuthenticated } = useAuth();
 
   return useQuery({
     queryKey: queryKeys.helloV2,
     queryFn: () => helloApi.getHelloV2(),
-    enabled: !isAuthLoading,
+    enabled: isAuthenticated && !isAuthLoading,
     staleTime: 60 * 1000
   });
 }

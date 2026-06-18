@@ -64,7 +64,7 @@ Most items are quick configuration or small code changes; the infra ones are Bic
 | 5 | S-FE-04 | ✅ | Frontend (React SPA) | CSRF cookie read with unanchored regex (cookie-name confusion) | 2 | 2 | 1 | 4.00 | Low |
 | 6 | S-BE-06 | ✅ | Backend & Infrastructure | CORS fallback `WithOrigins("*")` combined with `AllowCredentials()` | 4 | 2 | 2 | 3.00 | Medium |
 | 7 | S-BE-04 | ✅ | Backend & Infrastructure | Username/email enumeration via login timing + registration errors | 2 | 4 | 2 | 3.00 | Medium |
-| 8 | S-FE-05 | ☐ | Frontend (React SPA) | `.env` committed to source control | 2 | 1 | 1 | 3.00 | Low |
+| 8 | S-FE-05 | n/a | Frontend (React SPA) | `.env` committed to source control | 2 | 1 | 1 | 3.00 | Low |
 | 9 | S-FE-09 | ◑ | Frontend (React SPA) | Vulnerable/outdated dev dependency (esbuild) + no `npm audit` gate | 2 | 1 | 1 | 3.00 | Low |
 | 10 | S-BE-10 | ✅ | Backend & Infrastructure | OpenAPI Basic-Auth: non-constant-time compare + crash on malformed header | 1 | 2 | 1 | 3.00 | Low |
 | 11 | S-BE-11 | ✅ | Backend & Infrastructure | CSRF double-submit: non-constant-time compare & non-CSPRNG (`Guid`) token | 1 | 2 | 1 | 3.00 | Low |
@@ -76,10 +76,10 @@ Most items are quick configuration or small code changes; the infra ones are Bic
 | 17 | S-BE-03 | ✅ | Backend & Infrastructure | OAuth flows do not validate `state` (CSRF) and use no PKCE | 3 | 3 | 3 | 2.00 | Medium |
 | 18 | S-FE-01 | ✅ | Frontend (React SPA) | No Content-Security-Policy (key mitigation for in-memory token) | 3 | 3 | 3 | 2.00 | Medium |
 | 19 | S-BE-12 | n/a | Backend & Infrastructure | Workflows: third-party actions on floating tags; API deploy ungated | 3 | 1 | 2 | 2.00 | Low |
-| 20 | S-BE-13 | ☐ | Backend & Infrastructure | Login does not require confirmed email; min password length 8 | 2 | 2 | 2 | 2.00 | Low |
-| 21 | S-BE-14 | ☐ | Backend & Infrastructure | JWT secret length unenforced at validation; sample guidance "min 32 chars" | 2 | 2 | 2 | 2.00 | Low |
-| 22 | S-FE-08 | ☐ | Frontend (React SPA) | Weak client-side password policy | 2 | 1 | 2 | 1.50 | Low |
-| 23 | S-FE-10 | ☐ | Frontend (React SPA) | Non-sensitive queries fire before authentication is confirmed | 1 | 2 | 2 | 1.50 | Low |
+| 20 | S-BE-13 | n/a | Backend & Infrastructure | Login does not require confirmed email; min password length 8 | 2 | 2 | 2 | 2.00 | Low |
+| 21 | S-BE-14 | ✅ | Backend & Infrastructure | JWT secret length unenforced at validation; sample guidance "min 32 chars" | 2 | 2 | 2 | 2.00 | Low |
+| 22 | S-FE-08 | n/a | Frontend (React SPA) | Weak client-side password policy | 2 | 1 | 2 | 1.50 | Low |
+| 23 | S-FE-10 | ✅ | Frontend (React SPA) | Non-sensitive queries fire before authentication is confirmed | 1 | 2 | 2 | 1.50 | Low |
 | 24 | S-FE-07 | ✅ | Frontend (React SPA) | OAuth flow has no PKCE | 2 | 1 | 3 | 1.00 | Low |
 
 ---
@@ -242,6 +242,9 @@ Most items are quick configuration or small code changes; the infra ones are Bic
 - **Recommendation:** Pin actions to full commit SHAs (with Dependabot to bump them) and add a protected `environment:` (required reviewers) to the Azure deploy job.
 
 #### S-BE-13: Login does not require confirmed email; default password minimum length 8
+
+> **Status (2026-06-17): n/a — Won't fix.** Deliberately left as-is: requiring confirmed email at login and a longer password policy are reasonable hardening but not warranted for this project's scope. Adopters who need them can flip `SignIn.RequireConfirmedEmail` and raise `Password.RequiredLength`.
+
 - **Severity / Priority:** Low / 2.0
 - **Impact / Risk / Effort:** 2 / 2 / 2
 - **Location(s):** `StarterApp.API/ApplicationStartup/ServiceCollectionExtensions/IdentityServiceCollectionExtensions.cs:15-22` (no `RequireConfirmedEmail`, `RequiredLength = 8`); `StarterApp.API/Controllers/V1/AuthController.cs:122-153` (login does not check `EmailConfirmed`)
@@ -250,6 +253,9 @@ Most items are quick configuration or small code changes; the infra ones are Bic
 - **Recommendation:** Set `options.SignIn.RequireConfirmedEmail = true` (and enforce in login), raise `Password.RequiredLength` to 12, and consider `Password.RequiredUniqueChars`.
 
 #### S-BE-14: JWT signing-secret length not enforced at validation; sample guidance "min 32 chars"
+
+> **Status (2026-06-17): ✅ Fixed** — `AddAuthenticationServices` now validates the signing secret at startup (throws `InvalidOperationException` if `Authentication:APISecret` is empty or `< 64` bytes / 512 bits) **before** building the `IssuerSigningKey`, so a too-short secret fails fast on the validation path too — not only when a token is first issued. Onboarding guidance was corrected: `appsettings.Local.example.json` now reads `…-min-64-chars` and the README says `>= 64 chars (for HMAC-SHA512)`.
+
 - **Severity / Priority:** Low / 2.0
 - **Impact / Risk / Effort:** 2 / 2 / 2
 - **Location(s):** `StarterApp.API/ApplicationStartup/ServiceCollectionExtensions/AuthenticationServiceCollectionExtensions.cs:48` (signing key built with no length check); `StarterApp.API/Services/Auth/JwtTokenService.cs:127-132` (length check only on the issue path); `StarterApp.API/appsettings.Local.example.json:7` (`<your-jwt-signing-secret-min-32-chars>`)
@@ -308,6 +314,9 @@ Most items are quick configuration or small code changes; the infra ones are Bic
 - **Recommendation:** Anchor the match to a cookie boundary: `document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/)`. Pair with server-side `__Host-`-prefixed, `Secure`, `SameSite` cookies so the value cannot be set by subdomains.
 
 #### S-FE-05: `.env` committed to source control
+
+> **Status (2026-06-17): n/a — Won't fix.** Deliberately kept: the tracked `.env` holds only empty, public-by-design `VITE_*` values and is convenient as inline documentation for the template. The risk is a future-contributor footgun, not a current leak; adopters who prefer the stricter pattern can swap it for a committed `.env.example` and gitignore `.env`.
+
 - **Severity / Priority:** Low / 3.0
 - **Impact / Risk / Effort:** 2 / 1 / 1
 - **Location(s):** starter-app-ui/.env (tracked by git — confirmed via `git ls-files`); starter-app-ui/.gitignore:6 only ignores `.env.local`
@@ -360,6 +369,9 @@ Most items are quick configuration or small code changes; the infra ones are Bic
 - **Recommendation:** This is the right baseline — keep it. Strengthen the surrounding mitigations rather than changing storage: (a) ship a CSP (S-FE-01); (b) keep access-token TTL short and rely on the HttpOnly refresh cookie for longevity (already in place); (c) treat any future use of `dangerouslySetInnerHTML`/`innerHTML` or third-party script injection as high-risk; (d) consider a service-worker / BFF token-handler pattern only if your threat model warrants fully removing the token from the JS context.
 
 #### S-FE-08: Weak client-side password policy
+
+> **Status (2026-06-17): n/a — Won't fix.** On validation, the client policy (`8+` chars, `≥1` digit, `≥1` special char) **already matches the server's Identity options exactly** (`RequiredLength=8`, `RequireDigit`, `RequireNonAlphanumeric`, `RequireUppercase=false`), and registration already surfaces server-side validation errors verbatim via `ApiErrorDisplay`. Strengthening the client to 12+/uppercase/HIBP is the server-policy work tracked in **S-BE-13**, which was deliberately marked won't-fix; tightening only the client would make it reject passwords the server accepts (client/server divergence — the very thing this finding warns against). No divergence-safe change to make.
+
 - **Severity / Priority:** Low / 1.5
 - **Impact / Risk / Effort:** 2 / 1 / 2
 - **Location(s):** starter-app-ui/src/utils/passwordValidation.ts:6-25
@@ -368,6 +380,9 @@ Most items are quick configuration or small code changes; the infra ones are Bic
 - **Recommendation:** Align the client hint with the server's Identity password options (ideally 12+ chars, encourage passphrases) so the two never diverge, and surface server validation errors verbatim. Optionally integrate a k-anonymity HIBP check on registration.
 
 #### S-FE-10: Non-sensitive queries fire before authentication is confirmed
+
+> **Status (2026-06-17): ✅ Fixed** — `useHelloV1`/`useHelloV2` now use `enabled: isAuthenticated && !isAuthLoading`, matching the notes hooks, so no request is issued during the brief unauthenticated window before `ProtectedRoute` redirects. The "fetch only when authenticated" predicate is now uniform across data hooks.
+
 - **Severity / Priority:** Low / 1.5
 - **Impact / Risk / Effort:** 1 / 2 / 2
 - **Location(s):** starter-app-ui/src/hooks/api.ts:47-67 (`useHelloV1`/`useHelloV2` use `enabled: !isAuthLoading`); contrast notes hooks which use `enabled: isAuthenticated && !isAuthLoading` (api.ts:70-79,122-131)

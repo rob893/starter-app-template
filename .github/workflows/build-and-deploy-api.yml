@@ -58,7 +58,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     permissions:
-      id-token: write  # required for OIDC token request
+      id-token: write # required for OIDC token request
       contents: read
 
     steps:

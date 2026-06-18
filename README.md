@@ -64,7 +64,7 @@ for the full infrastructure and deployment guide.
 ```bash
 # From the repo root — create your local secrets file:
 cp StarterApp.API/appsettings.Local.example.json StarterApp.API/appsettings.Local.json
-# Edit it: set Postgres connection, a JWT APISecret (>= 32 chars), and OAuth client IDs/secrets.
+# Edit it: set Postgres connection, a JWT APISecret (>= 64 chars, for HMAC-SHA512), and OAuth client IDs/secrets.
 
 # Apply the migration to your database:
 dotnet ef database update --project StarterApp.API
