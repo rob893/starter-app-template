@@ -14,8 +14,16 @@ export const apiClient = axios.create({
   }
 });
 
-function getCsrfTokenFromCookie(): string | null {
-  const match = document.cookie.match(/csrf_token=([^;]+)/);
+/**
+ * Reads the `csrf_token` value from `document.cookie`.
+ *
+ * The match is anchored to a cookie boundary (`^` or `; `) so a decoy cookie such
+ * as `xcsrf_token` cannot be mistaken for it.
+ *
+ * @returns The decoded CSRF token, or `null` when the cookie is absent.
+ */
+export function getCsrfTokenFromCookie(): string | null {
+  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
   return match ? decodeURIComponent(match[1]) : null;
 }
 

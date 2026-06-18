@@ -138,7 +138,7 @@ public sealed class UserRepository : Repository<User, CursorPaginationQueryParam
     /// <inheritdoc />
     public async Task<bool> CheckPasswordAsync(User user, string password, CancellationToken cancellationToken = default)
     {
-        var result = await this.signInManager.CheckPasswordSignInAsync(user, password, false);
+        var result = await this.signInManager.CheckPasswordSignInAsync(user, password, true);
 
         return result.Succeeded;
     }

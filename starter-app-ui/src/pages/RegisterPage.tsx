@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { Card, CardContent, CardHeader, Button, Separator, Spinner } from '@heroui/react';
 import { ApiErrorDisplay } from '../components/ApiErrorDisplay';
+import { showErrorDetails } from '../utils/environment';
 import { FormField } from '../components/FormField';
 import { SocialLoginButtons } from '../components/SocialLoginButtons';
 import { useAuth } from '../hooks/useAuth';
@@ -69,7 +70,7 @@ export function RegisterPage() {
 
         <CardContent className="px-8 pb-8">
           <form onSubmit={handleSubmit} className="space-y-4">
-            {error && <ApiErrorDisplay error={error} title="Registration Failed" showDetails={true} />}
+            {error && <ApiErrorDisplay error={error} title="Registration Failed" showDetails={showErrorDetails} />}
 
             <FormField
               label="Username"

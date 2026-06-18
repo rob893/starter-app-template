@@ -53,12 +53,12 @@ Most items are quick configuration or small code changes; the infra ones are Bic
 
 | # | ID | Completed | Area | Title | Impact | Risk | Effort | Priority | Severity |
 |:---:|---|:---:|---|---|:---:|:---:|:---:|:---:|:---:|
-| 1 | S-BE-05 | ☐ | Backend & Infrastructure | OpenAPI/Scalar docs exposed publicly by default in all environments | 2 | 4 | 1 | 6.00 | Medium |
-| 2 | S-BE-02 | ☐ | Backend & Infrastructure | OAuth account auto-linking by email (Google `email_verified` ignored) → takeover | 5 | 3 | 2 | 4.00 | High |
-| 3 | S-BE-01 | ☐ | Backend & Infrastructure | No account lockout / brute-force protection on password login | 4 | 4 | 2 | 4.00 | High |
-| 4 | S-FE-03 | ☐ | Frontend (React SPA) | Internal debug details (correlationId/traceId/request path) shown to end users | 2 | 2 | 1 | 4.00 | Low |
-| 5 | S-FE-04 | ☐ | Frontend (React SPA) | CSRF cookie read with unanchored regex (cookie-name confusion) | 2 | 2 | 1 | 4.00 | Low |
-| 6 | S-BE-06 | ☐ | Backend & Infrastructure | CORS fallback `WithOrigins("*")` combined with `AllowCredentials()` | 4 | 2 | 2 | 3.00 | Medium |
+| 1 | S-BE-05 | ✅ | Backend & Infrastructure | OpenAPI/Scalar docs exposed publicly by default in all environments | 2 | 4 | 1 | 6.00 | Medium |
+| 2 | S-BE-02 | ✅ | Backend & Infrastructure | OAuth account auto-linking by email (Google `email_verified` ignored) → takeover | 5 | 3 | 2 | 4.00 | High |
+| 3 | S-BE-01 | ✅ | Backend & Infrastructure | No account lockout / brute-force protection on password login | 4 | 4 | 2 | 4.00 | High |
+| 4 | S-FE-03 | ✅ | Frontend (React SPA) | Internal debug details (correlationId/traceId/request path) shown to end users | 2 | 2 | 1 | 4.00 | Low |
+| 5 | S-FE-04 | ✅ | Frontend (React SPA) | CSRF cookie read with unanchored regex (cookie-name confusion) | 2 | 2 | 1 | 4.00 | Low |
+| 6 | S-BE-06 | ✅ | Backend & Infrastructure | CORS fallback `WithOrigins("*")` combined with `AllowCredentials()` | 4 | 2 | 2 | 3.00 | Medium |
 | 7 | S-BE-04 | ☐ | Backend & Infrastructure | Username/email enumeration via login timing + registration errors | 2 | 4 | 2 | 3.00 | Medium |
 | 8 | S-FE-05 | ☐ | Frontend (React SPA) | `.env` committed to source control | 2 | 1 | 1 | 3.00 | Low |
 | 9 | S-FE-09 | ☐ | Frontend (React SPA) | Vulnerable/outdated dev dependency (esbuild) + no `npm audit` gate | 2 | 1 | 1 | 3.00 | Low |
@@ -87,6 +87,9 @@ Most items are quick configuration or small code changes; the infra ones are Bic
 ### 2) Findings
 
 #### S-BE-05: OpenAPI/Scalar docs exposed publicly by default in all environments
+
+> **Status (2026-06-17): ✅ Fixed** — `OpenApi.AuthSettings.RequireAuth` now defaults to `true` (base `appsettings.json`) with a `false` override in `appsettings.Development.json`, so docs stay open in Development but require Basic auth in Production. The middleware also fails closed when no credentials are configured (no empty-credential bypass). Prod must supply the OpenAPI Basic-auth `Username`/`Password` via config/Key Vault.
+
 - **Severity / Priority:** Medium / 6.0
 - **Impact / Risk / Effort:** 2 / 4 / 1
 - **Location(s):** `StarterApp.API/appsettings.json:43-49` (`OpenApi.Enabled=true`, `AuthSettings.RequireAuth=false`); `StarterApp.API/Middleware/OpenApiBasicAuthMiddleware.cs:39-43`; `StarterApp.API/ApplicationStartup/ApplicationBuilderExtensions/OpenApiApplicationBuilderExtensions.cs:25-52`
@@ -99,6 +102,9 @@ Most items are quick configuration or small code changes; the infra ones are Bic
   and only enable anonymous docs when `app.Environment.IsDevelopment()`.
 
 #### S-BE-01: No account lockout / brute-force protection on password login
+
+> **Status (2026-06-17): ✅ Fixed** — configured Identity lockout (5 attempts → 15-minute lockout, `AllowedForNewUsers`) and switched the password check to `lockoutOnFailure: true`. A locked account returns the same generic failure (enumeration-safe), so brute-force / credential-stuffing is now throttled at the account level, not just per-IP.
+
 - **Severity / Priority:** High / 4.0
 - **Impact / Risk / Effort:** 4 / 4 / 2
 - **Location(s):** `StarterApp.API/Data/Repositories/UserRepository.cs:135-140` (`CheckPasswordSignInAsync(user, password, false)`); `StarterApp.API/ApplicationStartup/ServiceCollectionExtensions/IdentityServiceCollectionExtensions.cs:15-22` (no `opt.Lockout`); `StarterApp.API/Controllers/V1/AuthController.cs:137-142`
@@ -113,6 +119,9 @@ Most items are quick configuration or small code changes; the infra ones are Bic
   Ensure `CheckPasswordSignInAsync(user, password, lockoutOnFailure: true)` and surface lockout in the response generically.
 
 #### S-BE-02: OAuth account auto-linking by email (Google `email_verified` ignored) → account takeover
+
+> **Status (2026-06-17): ✅ Fixed** — `ExternalLoginService` now auto-links an external identity to an existing local account by email ONLY when the provider asserts a verified email AND the local account's email is already confirmed; otherwise it returns a generic 401 without linking. Closes the takeover via an unverified provider email or a pre-registered unconfirmed local account. GitHub (whose email is always primary+verified) is unaffected. Intentional behavior change; covered by new gating tests.
+
 - **Severity / Priority:** High / 4.0
 - **Impact / Risk / Effort:** 5 / 3 / 2
 - **Location(s):** `StarterApp.API/Controllers/V1/AuthController.cs:189-214` (Google link path); `:206` (`EmailConfirmed || validatedToken.EmailVerified`); `:308-335` (GitHub link path)
@@ -134,6 +143,9 @@ Most items are quick configuration or small code changes; the infra ones are Bic
 - **Recommendation:** Perform a dummy password hash when the user is absent to equalize timing (e.g., verify against a fixed dummy hash). For registration, return a generic message and avoid echoing duplicate-account details, or rely on the email-verification flow so existence is not confirmed synchronously.
 
 #### S-BE-06: CORS fallback `WithOrigins("*")` combined with `AllowCredentials()`
+
+> **Status (2026-06-17): ✅ Fixed** — removed the `["*"]` origins fallback; CORS now fails closed (no cross-origin allowed) when `Cors:AllowedOrigins` is unset, so a credentialed wildcard can never occur. Configured origins (the cross-site UI) still work; exposed headers unchanged.
+
 - **Severity / Priority:** Medium / 3.0
 - **Impact / Risk / Effort:** 4 / 2 / 2
 - **Location(s):** `StarterApp.API/ApplicationStartup/ApplicationBuilderExtensions/CorsApplicationBuilderExtensions.cs:10-22`
@@ -246,6 +258,9 @@ Most items are quick configuration or small code changes; the infra ones are Bic
 ### Findings
 
 #### S-FE-03: Internal debug details shown to end users
+
+> **Status (2026-06-17): ✅ Fixed** — introduced a centralized `showErrorDetails = import.meta.env.DEV || localhost` flag (`utils/environment.ts`) used for every `ApiErrorDisplay`; internal correlation/trace IDs are hidden from real users in production but still visible during local dev and any build served on `localhost`/`127.0.0.1`.
+
 - **Severity / Priority:** Low / 4.0
 - **Impact / Risk / Effort:** 2 / 2 / 1
 - **Location(s):** starter-app-ui/src/components/ApiErrorDisplay.tsx:41-66; consumed with `showDetails={true}` in starter-app-ui/src/pages/LoginPage.tsx:63, RegisterPage.tsx:88, ForgotPasswordPage.tsx:74, ResetPasswordPage.tsx:122
@@ -254,6 +269,9 @@ Most items are quick configuration or small code changes; the infra ones are Bic
 - **Recommendation:** Gate debug details behind `import.meta.env.DEV` (or a deliberate prop), e.g. `showDetails={import.meta.env.DEV}`. Show users a friendly message + correlation ID only if you intend them to quote it to support; never the trace ID/instance by default.
 
 #### S-FE-04: CSRF cookie read with an unanchored regex
+
+> **Status (2026-06-17): ✅ Fixed** — anchored the cookie regex to a boundary so a decoy like `xcsrf_token` can no longer be matched. It's pure `document.cookie` parsing, so it's domain-independent and unaffected by the cross-site (shared-parent-`Domain`) cookie setup; `withCredentials`, the `X-CSRF-Token` header, and the refresh flow are unchanged. +6 tests including the decoy case.
+
 - **Severity / Priority:** Low / 4.0
 - **Impact / Risk / Effort:** 2 / 2 / 1
 - **Location(s):** starter-app-ui/src/services/axiosConfig.ts:17-20

@@ -7,15 +7,17 @@ namespace StarterApp.API.ApplicationStartup.ApplicationBuilderExtensions;
 
 public static class CorsApplicationBuilderExtensions
 {
-    private static readonly string[] defaultOrigins = ["*"];
-
     public static IApplicationBuilder UseAndConfigureCors(this IApplicationBuilder app, IConfiguration config)
     {
         ArgumentNullException.ThrowIfNull(app);
         ArgumentNullException.ThrowIfNull(config);
 
+        // Fail closed: when no origins are configured allow NO cross-origin requests.
+        // Never combine a wildcard ("*") origin with AllowCredentials().
+        var allowedOrigins = config.GetSection(ConfigurationKeys.CorsAllowedOrigins).Get<string[]>() ?? [];
+
         app.UseCors(header =>
-            header.WithOrigins(config.GetSection(ConfigurationKeys.CorsAllowedOrigins).Get<string[]>() ?? defaultOrigins)
+            header.WithOrigins(allowedOrigins)
                 .AllowAnyMethod()
                 .AllowAnyHeader()
                 .AllowCredentials()

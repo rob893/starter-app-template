@@ -6,7 +6,7 @@ import axios, {
   type AxiosResponse,
   type InternalAxiosRequestConfig
 } from 'axios';
-import apiClient, { refreshAccessToken } from '../axiosConfig';
+import apiClient, { refreshAccessToken, getCsrfTokenFromCookie } from '../axiosConfig';
 import { getAccessToken, setAccessToken } from '../auth';
 import { ApiError } from '../../types/errors';
 
@@ -42,6 +42,65 @@ function unauthorized(config: InternalAxiosRequestConfig): AxiosError {
   };
   return new AxiosError('Unauthorized', 'ERR_BAD_REQUEST', config, null, response);
 }
+
+describe('getCsrfTokenFromCookie', () => {
+  function clearAllCookies(): void {
+    for (const pair of document.cookie.split(';')) {
+      const name = pair.split('=')[0].trim();
+      if (name) {
+        document.cookie = `${name}=; max-age=0`;
+      }
+    }
+  }
+
+  beforeEach(() => {
+    clearAllCookies();
+  });
+
+  afterEach(() => {
+    clearAllCookies();
+  });
+
+  it('returns the token when csrf_token is among multiple cookies', () => {
+    document.cookie = 'theme=dark';
+    document.cookie = 'csrf_token=mid-value';
+    document.cookie = 'session=abc';
+
+    expect(getCsrfTokenFromCookie()).toBe('mid-value');
+  });
+
+  it('returns the token when csrf_token is at the start of the cookie string', () => {
+    document.cookie = 'csrf_token=first-value';
+    document.cookie = 'theme=dark';
+
+    expect(getCsrfTokenFromCookie()).toBe('first-value');
+  });
+
+  it('does not match a decoy cookie such as xcsrf_token', () => {
+    document.cookie = 'xcsrf_token=decoy-value';
+
+    expect(getCsrfTokenFromCookie()).toBeNull();
+  });
+
+  it('prefers the real csrf_token over a decoy cookie present alongside it', () => {
+    document.cookie = 'xcsrf_token=decoy-value';
+    document.cookie = 'csrf_token=real-value';
+
+    expect(getCsrfTokenFromCookie()).toBe('real-value');
+  });
+
+  it('decodes a URL-encoded token value', () => {
+    document.cookie = 'csrf_token=a%2Bb%3D';
+
+    expect(getCsrfTokenFromCookie()).toBe('a+b=');
+  });
+
+  it('returns null when no csrf_token cookie is present', () => {
+    document.cookie = 'theme=dark';
+
+    expect(getCsrfTokenFromCookie()).toBeNull();
+  });
+});
 
 describe('refreshAccessToken', () => {
   let postSpy: MockInstance<typeof axios.post>;

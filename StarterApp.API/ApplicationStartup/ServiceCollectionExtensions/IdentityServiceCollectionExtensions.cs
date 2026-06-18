@@ -19,6 +19,9 @@ public static class IdentityServiceCollectionExtensions
             opt.Password.RequireNonAlphanumeric = true;
             opt.Password.RequireUppercase = false;
             opt.User.RequireUniqueEmail = true;
+            opt.Lockout.AllowedForNewUsers = true;
+            opt.Lockout.MaxFailedAccessAttempts = 5;
+            opt.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
         }).AddDefaultTokenProviders();
 
         builder = new IdentityBuilder(builder.UserType, typeof(Role), builder.Services);

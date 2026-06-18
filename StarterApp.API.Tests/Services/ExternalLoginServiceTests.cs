@@ -56,13 +56,11 @@ public sealed class ExternalLoginServiceTests
             Times.Never);
     }
 
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task ResolveOrProvisionUserAsync_EmailMatchesExistingUser_LinksAndSetsEmailConfirmedPerVerified(bool emailVerified)
+    [Fact]
+    public async Task ResolveOrProvisionUserAsync_EmailMatchesExistingUser_VerifiedAndConfirmed_Links()
     {
         var existing = BuildUser(11);
-        existing.EmailConfirmed = false;
+        existing.EmailConfirmed = true;
 
         this.userRepositoryMock
             .Setup(r => r.GetByLinkedAccountAsync(ProviderSubjectId, LinkedAccountType.GitHub, It.IsAny<System.Linq.Expressions.Expression<Func<User, object>>[]>(), It.IsAny<CancellationToken>()))
@@ -74,11 +72,11 @@ public sealed class ExternalLoginServiceTests
             .Setup(r => r.SaveChangesAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
 
-        var result = await this.sut.ResolveOrProvisionUserAsync(BuildIdentity(LinkedAccountType.GitHub, emailVerified), CancellationToken.None);
+        var result = await this.sut.ResolveOrProvisionUserAsync(BuildIdentity(LinkedAccountType.GitHub, emailVerified: true), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Same(existing, result.ValueOrThrow);
-        Assert.Equal(emailVerified, existing.EmailConfirmed);
+        Assert.True(existing.EmailConfirmed);
 
         var linked = Assert.Single(existing.LinkedAccounts);
         Assert.Equal(ProviderSubjectId, linked.Id);
@@ -90,9 +88,64 @@ public sealed class ExternalLoginServiceTests
     }
 
     [Fact]
+    public async Task ResolveOrProvisionUserAsync_EmailMatchesExistingUser_ProviderUnverified_FailsWithoutLinking()
+    {
+        var existing = BuildUser(11);
+        existing.EmailConfirmed = true;
+
+        this.userRepositoryMock
+            .Setup(r => r.GetByLinkedAccountAsync(ProviderSubjectId, LinkedAccountType.Google, It.IsAny<System.Linq.Expressions.Expression<Func<User, object>>[]>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((User?)null);
+        this.userRepositoryMock
+            .Setup(r => r.GetByEmailAsync(Email, It.IsAny<System.Linq.Expressions.Expression<Func<User, object>>[]>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(existing);
+
+        var result = await this.sut.ResolveOrProvisionUserAsync(BuildIdentity(LinkedAccountType.Google, emailVerified: false), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(DomainErrorType.Unauthorized, result.ErrorType);
+        Assert.Empty(existing.LinkedAccounts);
+
+        this.userRepositoryMock.Verify(
+            r => r.SaveChangesAsync(It.IsAny<CancellationToken>()),
+            Times.Never);
+        this.userRepositoryMock.Verify(
+            r => r.CreateUserWithoutPasswordAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task ResolveOrProvisionUserAsync_EmailMatchesExistingUser_LocalEmailUnconfirmed_FailsWithoutLinking()
+    {
+        var existing = BuildUser(11);
+        existing.EmailConfirmed = false;
+
+        this.userRepositoryMock
+            .Setup(r => r.GetByLinkedAccountAsync(ProviderSubjectId, LinkedAccountType.Google, It.IsAny<System.Linq.Expressions.Expression<Func<User, object>>[]>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((User?)null);
+        this.userRepositoryMock
+            .Setup(r => r.GetByEmailAsync(Email, It.IsAny<System.Linq.Expressions.Expression<Func<User, object>>[]>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(existing);
+
+        var result = await this.sut.ResolveOrProvisionUserAsync(BuildIdentity(LinkedAccountType.Google, emailVerified: true), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(DomainErrorType.Unauthorized, result.ErrorType);
+        Assert.Empty(existing.LinkedAccounts);
+
+        this.userRepositoryMock.Verify(
+            r => r.SaveChangesAsync(It.IsAny<CancellationToken>()),
+            Times.Never);
+        this.userRepositoryMock.Verify(
+            r => r.CreateUserWithoutPasswordAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task ResolveOrProvisionUserAsync_LinkSaveReturnsZero_ReturnsUnknownFailure()
     {
         var existing = BuildUser(11);
+        existing.EmailConfirmed = true;
 
         this.userRepositoryMock
             .Setup(r => r.GetByLinkedAccountAsync(ProviderSubjectId, LinkedAccountType.Google, It.IsAny<System.Linq.Expressions.Expression<Func<User, object>>[]>(), It.IsAny<CancellationToken>()))
@@ -104,7 +157,7 @@ public sealed class ExternalLoginServiceTests
             .Setup(r => r.SaveChangesAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(0);
 
-        var result = await this.sut.ResolveOrProvisionUserAsync(BuildIdentity(LinkedAccountType.Google), CancellationToken.None);
+        var result = await this.sut.ResolveOrProvisionUserAsync(BuildIdentity(LinkedAccountType.Google, emailVerified: true), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal(DomainErrorType.Unknown, result.ErrorType);

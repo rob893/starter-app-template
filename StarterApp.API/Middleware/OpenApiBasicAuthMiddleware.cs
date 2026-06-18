@@ -76,6 +76,13 @@ public sealed class OpenApiBasicAuthMiddleware
 
     private static bool IsAuthorized(string username, string password, OpenApiAuthSettings authSettings)
     {
+        // Fail closed when no credentials are configured so that RequireAuth=true with
+        // missing Username/Password returns 401 instead of allowing empty credentials.
+        if (string.IsNullOrEmpty(authSettings.Username) || string.IsNullOrEmpty(authSettings.Password))
+        {
+            return false;
+        }
+
         // Check that username and password are correct
         return username.Equals(authSettings.Username, StringComparison.Ordinal) && password.Equals(authSettings.Password, StringComparison.Ordinal);
     }

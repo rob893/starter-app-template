@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router';
 import { Card, CardContent, CardHeader, Button, Chip, Spinner } from '@heroui/react';
 import { ApiErrorDisplay } from '../components/ApiErrorDisplay';
+import { showErrorDetails } from '../utils/environment';
 import { FormField } from '../components/FormField';
 import { authApi } from '../services/auth';
 import {
@@ -114,7 +115,7 @@ export function ResetPasswordPage() {
 
         <CardContent className="px-8 pb-8">
           <form onSubmit={handleSubmit} className="space-y-4">
-            {error && <ApiErrorDisplay error={error} title="Password Reset Failed" showDetails={true} />}
+            {error && <ApiErrorDisplay error={error} title="Password Reset Failed" showDetails={showErrorDetails} />}
 
             <div className="mb-4 p-3 bg-default-50 rounded-lg border border-default-200">
               <p className="text-sm text-default-600">

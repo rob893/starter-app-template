@@ -51,14 +51,21 @@ public sealed class ExternalLoginService : IExternalLoginService
 
         if (user != null)
         {
+            // Security: only auto-link an external identity to an existing local account when the
+            // provider asserts a verified email AND the local account's email is already confirmed.
+            // Otherwise an unverified provider email (or a pre-registered unconfirmed local account)
+            // could be used to take over the existing account.
+            if (!identity.EmailVerified || !user.EmailConfirmed)
+            {
+                return Result<User>.Failure(DomainErrorType.Unauthorized, "Unable to sign in with this account.");
+            }
+
             // Link the external account to the existing user
             user.LinkedAccounts.Add(new LinkedAccount
             {
                 Id = identity.ProviderSubjectId,
                 LinkedAccountType = identity.ProviderType
             });
-
-            user.EmailConfirmed = user.EmailConfirmed || identity.EmailVerified;
 
             var updated = await this.userRepository.SaveChangesAsync(cancellationToken);
 
