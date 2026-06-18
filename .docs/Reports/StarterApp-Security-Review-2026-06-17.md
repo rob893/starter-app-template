@@ -47,6 +47,10 @@ Most items are quick configuration or small code changes; the infra ones are Bic
 - **OAuth `state` — reconciling the two areas.** The backend finding *S-BE-03* ("OAuth flows do not validate `state`/PKCE") and the frontend positive ("verified OAuth `state`") are **both correct and complementary**: the **SPA** generates a `crypto.randomUUID()` `state`, stores it in `sessionStorage`, and verifies it on return (client-side login-CSRF protection), but the **server** callback merely passes `state` through and the code-exchange endpoints accept a raw `code` with no server-side `state` binding and no PKCE. Net effect: client-side CSRF protection exists; server-side `state` binding and PKCE (the stronger, harder-to-bypass controls) do not. Treat **S-BE-03** + **S-FE-07** as one body of work.
 - **OpenAPI exposure (S-BE-05)** pairs with the Quality finding that all CI is disabled — review default-on/default-off posture holistically when hardening the template's defaults.
 
+### Deployment architecture constraint (applies to all fixes)
+
+**The frontend (React SPA) and backend (API) are deployed on *different* origins/domains** (e.g. the SPA on GitHub Pages, the API on Azure App Service). Any remediation must preserve this cross-origin split. Concretely: CORS stays cross-origin; all auth/flow cookies (refresh token, CSRF, and the OAuth `oauth_flow` cookie introduced for S-BE-03) must remain `SameSite=None; Secure` with an explicit `Domain`; and the SPA's `connect-src` CSP directive (S-FE-01) must allow the API origin (from `VITE_API_BASE_URL`) in addition to `'self'`. Fixes that assume a same-origin deployment (e.g. `SameSite=Strict`, `__Host-` cookies without a shared parent domain, or a `'self'`-only CSP) would break the template and must be avoided.
+
 ## Master ranking — all findings by Priority Score
 
 **Completed:** ✅ fixed · ◑ partial · n/a won't-fix (by design/sample) · ☐ open
@@ -66,17 +70,17 @@ Most items are quick configuration or small code changes; the infra ones are Bic
 | 11 | S-BE-11 | ✅ | Backend & Infrastructure | CSRF double-submit: non-constant-time compare & non-CSPRNG (`Guid`) token | 1 | 2 | 1 | 3.00 | Low |
 | 12 | S-BE-08 | ✅ | Backend & Infrastructure | Key Vault public network access enabled; purge protection disabled | 3 | 2 | 2 | 2.50 | Medium |
 | 13 | S-FE-02 | ✅ | Frontend (React SPA) | OAuth `code`/`state` left in URL hash & browser history (not cleared) | 3 | 2 | 2 | 2.50 | Medium |
-| 14 | S-BE-09 | ☐ | Backend & Infrastructure | PathBaseRewriter trusts arbitrary `X-Forwarded-Prefix` from any client | 2 | 3 | 2 | 2.50 | Medium |
-| 15 | S-BE-07 | ☐ | Backend & Infrastructure | Postgres publicly reachable + "allow all Azure services" firewall rule | 4 | 3 | 3 | 2.33 | High |
-| 16 | S-FE-06 | ☐ | Frontend (React SPA) | Access token held in JS-reachable memory — inherent XSS exfiltration exposure | 4 | 2 | 3 | 2.00 | Medium |
-| 17 | S-BE-03 | ☐ | Backend & Infrastructure | OAuth flows do not validate `state` (CSRF) and use no PKCE | 3 | 3 | 3 | 2.00 | Medium |
-| 18 | S-FE-01 | ☐ | Frontend (React SPA) | No Content-Security-Policy (key mitigation for in-memory token) | 3 | 3 | 3 | 2.00 | Medium |
-| 19 | S-BE-12 | ☐ | Backend & Infrastructure | Workflows: third-party actions on floating tags; API deploy ungated | 3 | 1 | 2 | 2.00 | Low |
+| 14 | S-BE-09 | ✅ | Backend & Infrastructure | PathBaseRewriter trusts arbitrary `X-Forwarded-Prefix` from any client | 2 | 3 | 2 | 2.50 | Medium |
+| 15 | S-BE-07 | ✅ | Backend & Infrastructure | Postgres publicly reachable + "allow all Azure services" firewall rule | 4 | 3 | 3 | 2.33 | High |
+| 16 | S-FE-06 | ✅ | Frontend (React SPA) | Access token held in JS-reachable memory — inherent XSS exfiltration exposure | 4 | 2 | 3 | 2.00 | Medium |
+| 17 | S-BE-03 | ✅ | Backend & Infrastructure | OAuth flows do not validate `state` (CSRF) and use no PKCE | 3 | 3 | 3 | 2.00 | Medium |
+| 18 | S-FE-01 | ✅ | Frontend (React SPA) | No Content-Security-Policy (key mitigation for in-memory token) | 3 | 3 | 3 | 2.00 | Medium |
+| 19 | S-BE-12 | n/a | Backend & Infrastructure | Workflows: third-party actions on floating tags; API deploy ungated | 3 | 1 | 2 | 2.00 | Low |
 | 20 | S-BE-13 | ☐ | Backend & Infrastructure | Login does not require confirmed email; min password length 8 | 2 | 2 | 2 | 2.00 | Low |
 | 21 | S-BE-14 | ☐ | Backend & Infrastructure | JWT secret length unenforced at validation; sample guidance "min 32 chars" | 2 | 2 | 2 | 2.00 | Low |
 | 22 | S-FE-08 | ☐ | Frontend (React SPA) | Weak client-side password policy | 2 | 1 | 2 | 1.50 | Low |
 | 23 | S-FE-10 | ☐ | Frontend (React SPA) | Non-sensitive queries fire before authentication is confirmed | 1 | 2 | 2 | 1.50 | Low |
-| 24 | S-FE-07 | ☐ | Frontend (React SPA) | OAuth flow has no PKCE | 2 | 1 | 3 | 1.00 | Low |
+| 24 | S-FE-07 | ✅ | Frontend (React SPA) | OAuth flow has no PKCE | 2 | 1 | 3 | 1.00 | Low |
 
 ---
 
@@ -194,6 +198,9 @@ Most items are quick configuration or small code changes; the infra ones are Bic
 - **Recommendation:** Set `publicNetworkAccess: 'Disabled'` with a private endpoint (or `networkAcls.defaultAction: 'Deny'` + allowed IPs/`bypass: 'AzureServices'`), and add `enablePurgeProtection: true` for non-dev environments.
 
 #### S-BE-09: PathBaseRewriter trusts arbitrary `X-Forwarded-Prefix` from any client
+
+> **Status (2026-06-17): ✅ Fixed** — `PathBaseRewriterMiddleware` now injects `IOptions<ForwardedHeadersSettings>` and only applies `X-Forwarded-Prefix` to `Request.PathBase` when the value **exactly matches** (ordinal) an entry in the new `ForwardedHeaders:AllowedForwardedPrefixes` allowlist. An empty allowlist (the default) ignores the header entirely, so arbitrary client-supplied prefixes can no longer poison generated URLs. +4 middleware tests.
+
 - **Severity / Priority:** Medium / 2.5
 - **Impact / Risk / Effort:** 2 / 3 / 2
 - **Location(s):** `StarterApp.API/Middleware/PathBaseRewriterMiddleware.cs:26-29`; pipeline order `StarterApp.API/ApplicationStartup/Startup.cs:68-69`
@@ -202,6 +209,9 @@ Most items are quick configuration or small code changes; the infra ones are Bic
 - **Recommendation:** Only honor `X-Forwarded-Prefix` when the connection originates from a known proxy (reuse the `ForwardedHeaders` KnownProxies/KnownNetworks trust list), validate/whitelist the prefix value, or drop this middleware and let `UseForwardedHeaders` handle prefixing.
 
 #### S-BE-07: Postgres publicly reachable + "allow all Azure services" firewall rule
+
+> **Status (2026-06-17): ✅ Fixed** — Postgres networking is now parameterized and secure-by-default: `publicNetworkAccess` (default `Enabled`; set `Disabled` + private endpoint for prod), the implicit `0.0.0.0` "allow all Azure services" rule is **no longer created unconditionally** — it exists only when `allowAzureServicesAccess` is explicitly `true` (module default `false`), and `allowedClientIpRanges` adds scoped per-IP firewall rules. To keep the VNet-less template deployable, the **dev** parameters file explicitly opts in (`postgresAllowAzureServicesAccess: true`); production inherits the secure default. Mirrors the Key Vault hardening pattern (S-BE-08); validated with `az bicep build`. Note: the connection string should use `SslMode=Require` (configured outside Bicep via Key Vault), and Entra (AAD) auth is preferred over password auth for production.
+
 - **Severity / Priority:** High / 2.33
 - **Impact / Risk / Effort:** 4 / 3 / 3
 - **Location(s):** `CI/Azure/modules/postgres.bicep:33-52` (no `network`/`publicNetworkAccess` → public), `:64-71` (firewall rule `0.0.0.0`–`0.0.0.0` = allow all Azure services)
@@ -210,6 +220,9 @@ Most items are quick configuration or small code changes; the infra ones are Bic
 - **Recommendation:** Use private access (VNet-injected Flexible Server + private DNS zone) or `publicNetworkAccess: 'Disabled'` with a private endpoint; remove the `AllowAllAzureServices` 0.0.0.0 rule and scope firewall rules to the App Service outbound/known IPs; prefer Entra (AAD) auth and enforce `SslMode=Require` end-to-end.
 
 #### S-BE-03: OAuth flows do not validate `state` (CSRF) and use no PKCE
+
+> **Status (2026-06-17): ✅ Fixed** — OAuth is now **backend-initiated**. New `GET /api/v1/auth/{provider}/start` endpoints generate a CSPRNG `state` and a PKCE (`S256`) `code_verifier`/`code_challenge`, bind `{ provider, state, codeVerifier }` to a tamper-proof (`IDataProtector`) HttpOnly `oauth_flow` cookie, and redirect to the provider with `code_challenge`. The callbacks now validate the returned `state` against the cookie with `CryptographicOperations.FixedTimeEquals` (and bind the provider), redirecting to `…?error=invalid_state` on mismatch. The code-exchange logins read the PKCE `code_verifier` from the cookie, send the exact registered `redirect_uri` (GitHub exchange now pins `redirect_uri`), and clear the cookie in a `finally`. This resolves **S-FE-07** (PKCE) as well. The cookie is `HttpOnly; Secure; SameSite=None; Domain=<CookieDomain>` so the **cross-domain** (separate FE/BE origin) flow keeps working. The SPA no longer builds the authorize URL or manages `state` itself. +AuthController tests.
+
 - **Severity / Priority:** Medium / 2.0
 - **Impact / Risk / Effort:** 3 / 3 / 3
 - **Location(s):** `StarterApp.API/Controllers/V1/AuthController.cs:398-415` (`GitHubCallback` passes `state` through, never validates); `:425-442` (`GoogleCallback`); `:166-258`/`:280-388` (`login/google`, `login/github` accept a raw `code` with no state binding); `StarterApp.API/Services/Auth/GitHubOAuthService.cs:44-60` (token exchange omits `redirect_uri`)
@@ -218,6 +231,9 @@ Most items are quick configuration or small code changes; the infra ones are Bic
 - **Recommendation:** Generate a CSPRNG `state` (and PKCE `code_verifier`) server-side, store it bound to the session/cookie, and reject callbacks/logins whose `state` does not match. Always send the exact registered `redirect_uri` in token exchanges.
 
 #### S-BE-12: Workflows — third-party actions on floating tags; API deploy job ungated
+
+> **Status (2026-06-17): n/a — Won't fix.** Deliberately not addressed: SHA-pinning, a protected deploy environment, and Dependabot are overkill for a hobby-scale project, so the workflows keep their floating major-version tags and the API deploy stays ungated. Revisit if the template is used for anything with real production/cloud-credential exposure.
+
 - **Severity / Priority:** Low / 2.0
 - **Impact / Risk / Effort:** 3 / 1 / 2
 - **Location(s):** `.github/workflows/build-and-deploy-api.yml:39,42,47,61,77,83,105`; `.github/workflows/ci.yml:18,21,26,54`; `.github/workflows/build-and-deploy-ui.yml:46,49,71,86`; deploy job `build-and-deploy-api.yml:67-108` (no `environment:`)
@@ -322,6 +338,9 @@ Most items are quick configuration or small code changes; the infra ones are Bic
 - **Recommendation:** Immediately after extracting the params, scrub them: `window.history.replaceState(null, '', window.location.pathname + window.location.hash.split('?')[0])`. Ensure the backend treats codes as strictly single-use and short-TTL. Avoid logging the code (currently it isn't logged — keep it that way).
 
 #### S-FE-01: No Content-Security-Policy
+
+> **Status (2026-06-17): ✅ Fixed** — a baseline Content-Security-Policy `<meta>` tag is now injected into the **production** build by a Vite `apply: 'build'` plugin and prepended to `<head>` so it governs the bundle's script/style tags. Because the SPA and API are on **different origins**, `connect-src` includes the API origin derived from `VITE_API_BASE_URL` alongside `'self'`. The policy keeps `script-src 'self'` (no `unsafe-inline`/`unsafe-eval`), allows `style-src 'self' 'unsafe-inline'` for Tailwind/HeroUI, and adds `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`, `frame-ancestors 'none'`. It is intentionally skipped in dev so Vite HMR works; `frame-ancestors` and other security headers (`X-Content-Type-Options`, `Referrer-Policy`, HSTS) should still be set at the hosting layer since `<meta>` CSP cannot enforce them. +7 tests.
+
 - **Severity / Priority:** Medium / 2.0
 - **Impact / Risk / Effort:** 3 / 3 / 3
 - **Location(s):** starter-app-ui/index.html:1-15 (no CSP `<meta>`); no header-based CSP in scope
@@ -330,6 +349,9 @@ Most items are quick configuration or small code changes; the infra ones are Bic
 - **Recommendation:** Add a starter CSP. Prefer a server/host header (App Service / GitHub Pages via `_headers` or meta) such as: `default-src 'self'; connect-src 'self' <API origin> https://github.com https://accounts.google.com; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`. Tailwind/HeroUI inject inline styles, so `style-src 'unsafe-inline'` is typically required; keep `script-src` free of `unsafe-inline`/`unsafe-eval`. Also add `frame-ancestors 'none'` (anti-clickjacking).
 
 #### S-FE-06: Access token held in JS-reachable memory (inherent XSS exposure)
+
+> **Status (2026-06-17): ✅ Addressed (mitigated; storage kept by design)** — the in-memory access-token design remains the recommended baseline (never in `localStorage`/`sessionStorage`). The key surrounding mitigation now ships: a Content-Security-Policy (see **S-FE-01**) that locks `script-src` to `'self'` and constrains `connect-src` to `'self'` + the API origin, blunting XSS-based token exfiltration. No XSS sinks exist in the SPA, and the short-lived access token continues to rely on the HttpOnly refresh cookie for longevity.
+
 - **Severity / Priority:** Medium / 2.0
 - **Impact / Risk / Effort:** 4 / 2 / 3
 - **Location(s):** starter-app-ui/src/services/auth.ts:8,24-30,44-78; read in starter-app-ui/src/services/axiosConfig.ts:24-27
@@ -354,6 +376,9 @@ Most items are quick configuration or small code changes; the infra ones are Bic
 - **Recommendation:** Use `enabled: isAuthenticated && !isAuthLoading` consistently for any authenticated data fetch; reserve `!isAuthLoading`-only gating for genuinely public endpoints.
 
 #### S-FE-07: OAuth flow has no PKCE
+
+> **Status (2026-06-17): ✅ Fixed (via S-BE-03)** — PKCE (`S256`) is now implemented end-to-end as part of the backend-initiated OAuth flow: the `/{provider}/start` endpoint generates the `code_verifier`, sends the `code_challenge` to the provider, and the server-side token exchange submits the `code_verifier`. See S-BE-03 for details.
+
 - **Severity / Priority:** Low / 1.0
 - **Impact / Risk / Effort:** 2 / 1 / 3
 - **Location(s):** starter-app-ui/src/utils/oauthUtils.ts:62-84 (authorize request builds `client_id`, `redirect_uri`, `scope`, `state` — no `code_challenge`)

@@ -59,6 +59,19 @@ param postgresBackupRetentionDays int = 7
 ])
 param postgresHighAvailabilityMode string = 'Disabled'
 
+@description('PostgreSQL public network access. Defaults to Enabled because this template has no VNet/private endpoint and the App Service reaches the database over the public endpoint. For production, set to Disabled and add a private endpoint.')
+@allowed([
+  'Enabled'
+  'Disabled'
+])
+param postgresPublicNetworkAccess string = 'Enabled'
+
+@description('Create the AllowAllAzureServices firewall rule (0.0.0.0–0.0.0.0 sentinel) on Postgres. The module default is false (secure); the dev parameters file opts in because the App Service has no VNet integration. Prefer scoping IPs via postgresAllowedClientIpRanges or going private in production.')
+param postgresAllowAzureServicesAccess bool = false
+
+@description('Scoped Postgres client IP ranges allowed through the firewall. Each element is { name, startIpAddress, endIpAddress }.')
+param postgresAllowedClientIpRanges array = []
+
 @description('Log Analytics workspace data retention in days (30–730).')
 @minValue(30)
 @maxValue(730)
@@ -156,6 +169,9 @@ module postgres 'modules/postgres.bicep' = {
     storageSizeGB: postgresStorageSizeGB
     backupRetentionDays: postgresBackupRetentionDays
     highAvailabilityMode: postgresHighAvailabilityMode
+    publicNetworkAccess: postgresPublicNetworkAccess
+    allowAzureServicesAccess: postgresAllowAzureServicesAccess
+    allowedClientIpRanges: postgresAllowedClientIpRanges
     tags: resolvedTags
   }
 }

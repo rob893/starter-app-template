@@ -83,8 +83,6 @@ public static class Program
                             logger.LogWarning("Invalid seeder password");
                         }
                     });
-
-                return;
             }
         }
 

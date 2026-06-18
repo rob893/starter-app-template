@@ -41,14 +41,14 @@ describe('validatePassword', () => {
 describe('handleOAuthCallback', () => {
   it('returns error when error param present', () => {
     const params = new URLSearchParams({ error: 'access_denied', error_description: 'User denied' });
-    const result = handleOAuthCallback('github', params);
+    const result = handleOAuthCallback(params);
     expect(result?.error).toBe('access_denied');
     expect(result?.errorDescription).toBe('User denied');
   });
 
-  it('returns invalid_state when state does not match', () => {
-    const params = new URLSearchParams({ code: 'abc', state: 'wrong-state' });
-    const result = handleOAuthCallback('github', params);
-    expect(result?.error).toBe('invalid_state');
+  it('returns the code when present (state is validated server-side)', () => {
+    const params = new URLSearchParams({ code: 'abc', state: 'ignored' });
+    const result = handleOAuthCallback(params);
+    expect(result).toEqual({ code: 'abc' });
   });
 });

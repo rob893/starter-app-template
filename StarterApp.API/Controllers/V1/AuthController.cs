@@ -3,12 +3,16 @@ using System.Globalization;
 using System.Linq;
 using System.Net.Http;
 using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using StarterApp.API.Constants;
@@ -71,6 +75,8 @@ public sealed class AuthController : ServiceControllerBase
 
     private readonly AuthenticationSettings authSettings;
 
+    private readonly IDataProtector oauthFlowProtector;
+
     private readonly ILogger<AuthController> logger;
 
     public AuthController(
@@ -81,10 +87,13 @@ public sealed class AuthController : ServiceControllerBase
         IGoogleOAuthService googleOAuthService,
         IExternalLoginService externalLoginService,
         IOptions<AuthenticationSettings> authSettings,
+        IDataProtectionProvider dataProtectionProvider,
         ICorrelationIdService correlationIdService,
         ILogger<AuthController> logger)
             : base(correlationIdService)
     {
+        ArgumentNullException.ThrowIfNull(dataProtectionProvider);
+
         this.userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
         this.jwtTokenService = jwtTokenService ?? throw new ArgumentNullException(nameof(jwtTokenService));
         this.userService = userService ?? throw new ArgumentNullException(nameof(userService));
@@ -92,6 +101,7 @@ public sealed class AuthController : ServiceControllerBase
         this.googleOAuthService = googleOAuthService ?? throw new ArgumentNullException(nameof(googleOAuthService));
         this.externalLoginService = externalLoginService ?? throw new ArgumentNullException(nameof(externalLoginService));
         this.authSettings = authSettings?.Value ?? throw new ArgumentNullException(nameof(authSettings));
+        this.oauthFlowProtector = dataProtectionProvider.CreateProtector(OAuthConstants.DataProtectionPurpose);
         this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -228,7 +238,12 @@ public sealed class AuthController : ServiceControllerBase
                 return this.BadRequest("Request body cannot be null.");
             }
 
-            var idToken = await this.googleOAuthService.ExchangeCodeForGoogleIdTokenAsync(loginRequest.Code, cancellationToken);
+            if (!this.TryReadOAuthFlowCookie(OAuthConstants.GoogleProvider, out var flow))
+            {
+                return this.Unauthorized("Invalid or missing OAuth flow. Please restart the login process.");
+            }
+
+            var idToken = await this.googleOAuthService.ExchangeCodeForGoogleIdTokenAsync(loginRequest.Code, flow.CodeVerifier, cancellationToken);
 
             if (string.IsNullOrWhiteSpace(idToken))
             {
@@ -274,6 +289,10 @@ public sealed class AuthController : ServiceControllerBase
             this.logger.LogError(ex, "Unexpected error during Google login.");
             return this.InternalServerError("Unable to login with Google.");
         }
+        finally
+        {
+            this.DeleteOAuthFlowCookie();
+        }
     }
 
     /// <summary>
@@ -299,7 +318,12 @@ public sealed class AuthController : ServiceControllerBase
                 return this.BadRequest("Request body cannot be null.");
             }
 
-            var githubToken = await this.gitHubOAuthService.ExchangeCodeForGithubAccessTokenAsync(loginRequest.Code, cancellationToken);
+            if (!this.TryReadOAuthFlowCookie(OAuthConstants.GitHubProvider, out var flow))
+            {
+                return this.Unauthorized("Invalid or missing OAuth flow. Please restart the login process.");
+            }
+
+            var githubToken = await this.gitHubOAuthService.ExchangeCodeForGithubAccessTokenAsync(loginRequest.Code, flow.CodeVerifier, cancellationToken);
 
             if (string.IsNullOrWhiteSpace(githubToken))
             {
@@ -354,60 +378,91 @@ public sealed class AuthController : ServiceControllerBase
             this.logger.LogError(ex, "Unexpected error during GitHub login.");
             return this.InternalServerError("Unable to login with GitHub.");
         }
+        finally
+        {
+            this.DeleteOAuthFlowCookie();
+        }
     }
 
     /// <summary>
-    /// Handles the GitHub OAuth callback by redirecting to the UI with the authorization code.
+    /// Begins the backend-initiated GitHub OAuth flow by issuing CSRF state + PKCE, persisting them in
+    /// a tamper-proof cookie, and redirecting the browser to GitHub's authorize endpoint.
+    /// </summary>
+    /// <returns>A redirect to GitHub's authorize endpoint.</returns>
+    /// <response code="302">Redirects to the GitHub authorize endpoint.</response>
+    [AllowAnonymous]
+    [HttpGet("github/start", Name = nameof(GitHubStart))]
+    [ProducesResponseType(StatusCodes.Status302Found)]
+    public IActionResult GitHubStart()
+    {
+        var authorizeUrl = this.BeginOAuthFlow(
+            OAuthConstants.GitHubProvider,
+            OAuthConstants.GitHubAuthorizeUrl,
+            this.authSettings.GitHubOAuthClientId,
+            this.authSettings.GitHubOAuthRedirectUri,
+            OAuthConstants.GitHubScope,
+            additionalParameters: null);
+
+        return this.Redirect(authorizeUrl);
+    }
+
+    /// <summary>
+    /// Begins the backend-initiated Google OAuth flow by issuing CSRF state + PKCE, persisting them in
+    /// a tamper-proof cookie, and redirecting the browser to Google's authorize endpoint.
+    /// </summary>
+    /// <returns>A redirect to Google's authorize endpoint.</returns>
+    /// <response code="302">Redirects to the Google authorize endpoint.</response>
+    [AllowAnonymous]
+    [HttpGet("google/start", Name = nameof(GoogleStart))]
+    [ProducesResponseType(StatusCodes.Status302Found)]
+    public IActionResult GoogleStart()
+    {
+        var authorizeUrl = this.BeginOAuthFlow(
+            OAuthConstants.GoogleProvider,
+            OAuthConstants.GoogleAuthorizeUrl,
+            this.authSettings.GoogleOAuthClientId,
+            this.authSettings.GoogleOAuthRedirectUri,
+            OAuthConstants.GoogleScope,
+            additionalParameters: new[]
+            {
+                ("response_type", "code"),
+                ("access_type", "offline"),
+                ("prompt", "consent")
+            });
+
+        return this.Redirect(authorizeUrl);
+    }
+
+    /// <summary>
+    /// Handles the GitHub OAuth callback by validating the cookie-bound state and redirecting to the
+    /// UI with the authorization code.
     /// </summary>
     /// <param name="code">The authorization code from GitHub.</param>
-    /// <param name="state">The optional state parameter for CSRF protection.</param>
-    /// <returns>A redirect to the UI with the authorization code.</returns>
+    /// <param name="state">The state parameter, validated against the cookie-bound flow state.</param>
+    /// <returns>A redirect to the UI with the authorization code or an error.</returns>
     /// <response code="302">Redirects to the UI with the authorization code or error.</response>
     [AllowAnonymous]
     [HttpGet("github/callback", Name = nameof(GitHubCallback))]
     [ProducesResponseType(StatusCodes.Status302Found)]
     public IActionResult GitHubCallback([FromQuery] string code, [FromQuery] string state)
     {
-        if (string.IsNullOrWhiteSpace(code))
-        {
-            return this.Redirect($"{this.authSettings.UIBaseUrl}#/auth/github/callback?error=missing_code");
-        }
-
-        var redirectUrl = $"{this.authSettings.UIBaseUrl}#/auth/github/callback?code={Uri.EscapeDataString(code)}";
-
-        if (!string.IsNullOrWhiteSpace(state))
-        {
-            redirectUrl += $"&state={Uri.EscapeDataString(state)}";
-        }
-
-        return this.Redirect(redirectUrl);
+        return this.HandleOAuthCallback(OAuthConstants.GitHubProvider, code, state);
     }
 
     /// <summary>
-    /// Handles the Google OAuth callback by redirecting to the UI with the authorization code.
+    /// Handles the Google OAuth callback by validating the cookie-bound state and redirecting to the
+    /// UI with the authorization code.
     /// </summary>
     /// <param name="code">The authorization code from Google.</param>
-    /// <param name="state">The optional state parameter for CSRF protection.</param>
-    /// <returns>A redirect to the UI with the authorization code.</returns>
+    /// <param name="state">The state parameter, validated against the cookie-bound flow state.</param>
+    /// <returns>A redirect to the UI with the authorization code or an error.</returns>
     /// <response code="302">Redirects to the UI with the authorization code or error.</response>
     [AllowAnonymous]
     [HttpGet("google/callback", Name = nameof(GoogleCallback))]
     [ProducesResponseType(StatusCodes.Status302Found)]
     public IActionResult GoogleCallback([FromQuery] string code, [FromQuery] string state)
     {
-        if (string.IsNullOrWhiteSpace(code))
-        {
-            return this.Redirect($"{this.authSettings.UIBaseUrl}#/auth/google/callback?error=missing_code");
-        }
-
-        var redirectUrl = $"{this.authSettings.UIBaseUrl}#/auth/google/callback?code={Uri.EscapeDataString(code)}";
-
-        if (!string.IsNullOrWhiteSpace(state))
-        {
-            redirectUrl += $"&state={Uri.EscapeDataString(state)}";
-        }
-
-        return this.Redirect(redirectUrl);
+        return this.HandleOAuthCallback(OAuthConstants.GoogleProvider, code, state);
     }
 
     /// <summary>
@@ -546,5 +601,176 @@ public sealed class AuthController : ServiceControllerBase
         });
 
         return token;
+    }
+
+    /// <summary>
+    /// Begins a backend-initiated OAuth flow: generates a CSPRNG state and PKCE verifier/challenge,
+    /// persists <c>{ provider, state, codeVerifier }</c> in the tamper-proof <c>oauth_flow</c> cookie,
+    /// and returns the provider authorize URL the browser should be redirected to.
+    /// </summary>
+    private string BeginOAuthFlow(
+        string provider,
+        string authorizeUrl,
+        string clientId,
+        Uri redirectUri,
+        string scope,
+        (string Key, string Value)[]? additionalParameters)
+    {
+        var state = GenerateUrlToken(32);
+        var codeVerifier = GenerateUrlToken(32);
+        var codeChallenge = GenerateCodeChallenge(codeVerifier);
+
+        var payload = JsonSerializer.Serialize(new OAuthFlowState
+        {
+            Provider = provider,
+            State = state,
+            CodeVerifier = codeVerifier
+        });
+
+        this.Response.Cookies.Append(CookieKeys.OAuthFlow, this.oauthFlowProtector.Protect(payload), this.BuildOAuthFlowCookieOptions(includeExpiry: true));
+
+        var query = new StringBuilder();
+        query.Append("client_id=").Append(Uri.EscapeDataString(clientId));
+        query.Append("&redirect_uri=").Append(Uri.EscapeDataString(redirectUri.ToString()));
+        query.Append("&scope=").Append(Uri.EscapeDataString(scope));
+        query.Append("&state=").Append(Uri.EscapeDataString(state));
+        query.Append("&code_challenge=").Append(Uri.EscapeDataString(codeChallenge));
+        query.Append("&code_challenge_method=").Append(Uri.EscapeDataString(OAuthConstants.CodeChallengeMethod));
+
+        if (additionalParameters != null)
+        {
+            foreach (var (key, value) in additionalParameters)
+            {
+                query.Append('&').Append(Uri.EscapeDataString(key)).Append('=').Append(Uri.EscapeDataString(value));
+            }
+        }
+
+        return $"{authorizeUrl}?{query}";
+    }
+
+    /// <summary>
+    /// Validates the cookie-bound OAuth state for a callback and returns the UI redirect URL.
+    /// </summary>
+    private RedirectResult HandleOAuthCallback(string provider, string code, string state)
+    {
+        if (!this.TryReadOAuthFlowCookie(provider, out var flow) ||
+            string.IsNullOrEmpty(state) ||
+            !FixedTimeEquals(state, flow.State))
+        {
+            return this.Redirect($"{this.authSettings.UIBaseUrl}#/auth/{provider}/callback?error=invalid_state");
+        }
+
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            return this.Redirect($"{this.authSettings.UIBaseUrl}#/auth/{provider}/callback?error=missing_code");
+        }
+
+        return this.Redirect($"{this.authSettings.UIBaseUrl}#/auth/{provider}/callback?code={Uri.EscapeDataString(code)}");
+    }
+
+    /// <summary>
+    /// Attempts to read and unprotect the <c>oauth_flow</c> cookie and confirm it matches the expected provider.
+    /// </summary>
+    private bool TryReadOAuthFlowCookie(string expectedProvider, out OAuthFlowState flow)
+    {
+        flow = default!;
+
+        if (!this.Request.Cookies.TryGetValue(CookieKeys.OAuthFlow, out var protectedValue) || string.IsNullOrEmpty(protectedValue))
+        {
+            return false;
+        }
+
+        try
+        {
+            var payload = this.oauthFlowProtector.Unprotect(protectedValue);
+            var parsed = JsonSerializer.Deserialize<OAuthFlowState>(payload);
+
+            if (parsed == null ||
+                string.IsNullOrEmpty(parsed.State) ||
+                string.IsNullOrEmpty(parsed.CodeVerifier) ||
+                !string.Equals(parsed.Provider, expectedProvider, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            flow = parsed;
+            return true;
+        }
+        catch (Exception ex) when (ex is CryptographicException or JsonException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Deletes the <c>oauth_flow</c> cookie using the same options it was set with so the browser clears it.
+    /// </summary>
+    private void DeleteOAuthFlowCookie()
+    {
+        this.Response.Cookies.Delete(CookieKeys.OAuthFlow, this.BuildOAuthFlowCookieOptions(includeExpiry: false));
+    }
+
+    /// <summary>
+    /// Builds the cross-domain cookie options used for the <c>oauth_flow</c> cookie, matching the
+    /// refresh-cookie settings so the browser accepts and later clears it.
+    /// </summary>
+    private CookieOptions BuildOAuthFlowCookieOptions(bool includeExpiry)
+    {
+        var options = new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = true,
+            SameSite = SameSiteMode.None,
+            IsEssential = true,
+            Domain = this.authSettings.CookieDomain,
+            Path = "/"
+        };
+
+        if (includeExpiry)
+        {
+            options.MaxAge = TimeSpan.FromMinutes(10);
+        }
+
+        return options;
+    }
+
+    /// <summary>
+    /// Generates a base64url-encoded (no padding) token from <paramref name="byteLength"/> CSPRNG bytes.
+    /// </summary>
+    private static string GenerateUrlToken(int byteLength)
+    {
+        var bytes = new byte[byteLength];
+        RandomNumberGenerator.Fill(bytes);
+        return WebEncoders.Base64UrlEncode(bytes);
+    }
+
+    /// <summary>
+    /// Computes the PKCE S256 code challenge for the supplied verifier.
+    /// </summary>
+    private static string GenerateCodeChallenge(string codeVerifier)
+    {
+        var hash = SHA256.HashData(Encoding.ASCII.GetBytes(codeVerifier));
+        return WebEncoders.Base64UrlEncode(hash);
+    }
+
+    /// <summary>
+    /// Cookie payload binding an in-flight OAuth authorization to its provider, CSRF state and PKCE verifier.
+    /// </summary>
+    private sealed record OAuthFlowState
+    {
+        /// <summary>
+        /// The OAuth provider this flow was initiated for.
+        /// </summary>
+        public string Provider { get; init; } = default!;
+
+        /// <summary>
+        /// The CSRF state value echoed back by the provider on the callback.
+        /// </summary>
+        public string State { get; init; } = default!;
+
+        /// <summary>
+        /// The PKCE code verifier used during token exchange.
+        /// </summary>
+        public string CodeVerifier { get; init; } = default!;
     }
 }

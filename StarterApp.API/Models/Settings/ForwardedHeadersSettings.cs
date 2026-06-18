@@ -28,4 +28,13 @@ public sealed record ForwardedHeadersSettings
     /// upstream clients.
     /// </summary>
     public int ForwardLimit { get; init; } = 1;
+
+    /// <summary>
+    /// Allowlist of trusted reverse-proxy path prefixes that may be honoured from the
+    /// <c>X-Forwarded-Prefix</c> header. Because that header is client-supplied, the value is only
+    /// applied to <see cref="Microsoft.AspNetCore.Http.HttpRequest.PathBase"/> when it matches an
+    /// entry here exactly (ordinal). An empty list (the default) means the header is ignored
+    /// entirely, preventing clients from poisoning generated URLs.
+    /// </summary>
+    public IReadOnlyList<string> AllowedForwardedPrefixes { get; init; } = [];
 }

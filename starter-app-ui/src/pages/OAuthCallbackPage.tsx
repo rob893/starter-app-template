@@ -42,7 +42,7 @@ export function OAuthCallbackPage({ provider }: { provider: OAuthProvider }) {
       try {
         setStep('processing');
 
-        const result = handleOAuthCallbackFromUrl(provider);
+        const result = handleOAuthCallbackFromUrl();
 
         // Scrub the single-use OAuth `code`/`state` from the URL and history once they have been
         // read and CSRF-verified, so they no longer linger in the address bar or window.history.

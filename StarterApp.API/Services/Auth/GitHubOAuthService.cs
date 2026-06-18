@@ -41,7 +41,7 @@ public sealed class GitHubOAuthService : IGitHubOAuthService
         this.authSettings = authSettings?.Value ?? throw new ArgumentNullException(nameof(authSettings));
     }
 
-    public async Task<string> ExchangeCodeForGithubAccessTokenAsync(string code, CancellationToken cancellationToken)
+    public async Task<string> ExchangeCodeForGithubAccessTokenAsync(string code, string codeVerifier, CancellationToken cancellationToken)
     {
         using var client = this.httpClientFactory.CreateClient();
 
@@ -49,7 +49,9 @@ public sealed class GitHubOAuthService : IGitHubOAuthService
         {
             { "client_id", this.authSettings.GitHubOAuthClientId },
             { "client_secret", this.authSettings.GitHubOAuthClientSecret },
-            { "code", code }
+            { "code", code },
+            { "redirect_uri", this.authSettings.GitHubOAuthRedirectUri.ToString() },
+            { "code_verifier", codeVerifier }
         });
         var response = await client.PostAsync(new Uri("https://github.com/login/oauth/access_token"), encodedContent, cancellationToken);
 

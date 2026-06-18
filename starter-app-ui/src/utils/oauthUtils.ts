@@ -1,5 +1,11 @@
 /**
- * Generic OAuth utility functions for multiple providers
+ * Generic OAuth utility functions for multiple providers.
+ *
+ * The authorization flow is initiated server-side: the SPA navigates to the API's
+ * `/{provider}/start` endpoint, which generates and binds the anti-CSRF `state` and the PKCE
+ * `code_verifier` to an HttpOnly cookie before redirecting to the provider. The SPA therefore
+ * no longer builds the authorize URL, holds the client IDs, or manages `state` itself — the
+ * server is the authority for CSRF/PKCE binding.
  */
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
@@ -12,78 +18,28 @@ export interface OAuthCallbackResult {
   errorDescription?: string;
 }
 
-interface OAuthProviderConfig {
-  clientId: string;
-  authUrl: string;
-  scope: string;
-  stateKey: string;
-  redirectPath: string;
-  additionalParams?: Record<string, string>;
-}
-
-const OAUTH_PROVIDERS: Record<OAuthProvider, OAuthProviderConfig> = {
-  github: {
-    clientId: import.meta.env.VITE_GITHUB_CLIENT_ID,
-    authUrl: 'https://github.com/login/oauth/authorize',
-    scope: 'read:user user:email',
-    stateKey: 'github_oauth_state',
-    redirectPath: '/api/v1/auth/github/callback'
-  },
-  google: {
-    clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID,
-    authUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
-    scope: 'openid email profile',
-    stateKey: 'google_oauth_state',
-    redirectPath: '/api/v1/auth/google/callback',
-    additionalParams: {
-      response_type: 'code',
-      access_type: 'offline',
-      prompt: 'consent'
-    }
-  }
+/** API endpoints that begin the server-driven OAuth authorization flow. */
+const OAUTH_START_PATHS: Record<OAuthProvider, string> = {
+  github: '/api/v1/auth/github/start',
+  google: '/api/v1/auth/google/start'
 };
 
-function generateState(): string {
-  return crypto.randomUUID();
-}
-
-function storeOAuthState(provider: OAuthProvider, state: string): void {
-  const config = OAUTH_PROVIDERS[provider];
-  sessionStorage.setItem(config.stateKey, state);
-}
-
-function getAndClearOAuthState(provider: OAuthProvider): string | null {
-  const config = OAUTH_PROVIDERS[provider];
-  const state = sessionStorage.getItem(config.stateKey);
-  sessionStorage.removeItem(config.stateKey);
-  return state;
-}
-
+/**
+ * Begins an OAuth login by navigating to the API's server-side start endpoint, which binds the
+ * `state`/PKCE verifier to a cookie and redirects on to the provider.
+ *
+ * @param provider The OAuth provider to authenticate with.
+ */
 export function redirectToOAuth(provider: OAuthProvider): void {
-  const config = OAUTH_PROVIDERS[provider];
-
-  if (!config.clientId) {
-    throw new Error(
-      `${provider.charAt(0).toUpperCase() + provider.slice(1)} Client ID not configured. ` +
-        `Please set VITE_${provider.toUpperCase()}_CLIENT_ID in your environment variables.`
-    );
-  }
-
-  const state = generateState();
-  storeOAuthState(provider, state);
-
-  const params = new URLSearchParams({
-    client_id: config.clientId,
-    redirect_uri: `${API_BASE_URL}${config.redirectPath}`,
-    scope: config.scope,
-    state,
-    ...config.additionalParams
-  });
-
-  window.location.href = `${config.authUrl}?${params.toString()}`;
+  window.location.href = `${API_BASE_URL}${OAUTH_START_PATHS[provider]}`;
 }
 
-export function handleOAuthCallbackFromUrl(provider: OAuthProvider): OAuthCallbackResult | null {
+/**
+ * Reads the OAuth callback result from the current URL hash (the app uses HashRouter).
+ *
+ * @returns The parsed callback result, or null when the hash carries no query string.
+ */
+export function handleOAuthCallbackFromUrl(): OAuthCallbackResult | null {
   const hash = window.location.hash;
 
   const queryStringIndex = hash.indexOf('?');
@@ -93,15 +49,18 @@ export function handleOAuthCallbackFromUrl(provider: OAuthProvider): OAuthCallba
 
   const queryString = hash.substring(queryStringIndex + 1);
   const searchParams = new URLSearchParams(queryString);
-  return handleOAuthCallback(provider, searchParams);
+  return handleOAuthCallback(searchParams);
 }
 
-export function handleOAuthCallback(
-  provider: OAuthProvider,
-  searchParams: URLSearchParams
-): OAuthCallbackResult | null {
+/**
+ * Parses an OAuth callback's query parameters into a result. The anti-CSRF `state` is validated
+ * server-side (cookie-bound) before the API redirects here, so the SPA only needs the `code`.
+ *
+ * @param searchParams The callback query parameters.
+ * @returns The parsed callback result.
+ */
+export function handleOAuthCallback(searchParams: URLSearchParams): OAuthCallbackResult | null {
   const code = searchParams.get('code');
-  const state = searchParams.get('state');
   const error = searchParams.get('error');
   const errorDescription = searchParams.get('error_description');
 
@@ -109,14 +68,6 @@ export function handleOAuthCallback(
     return {
       error,
       errorDescription: errorDescription || undefined
-    };
-  }
-
-  const storedState = getAndClearOAuthState(provider);
-  if (!state || state !== storedState) {
-    return {
-      error: 'invalid_state',
-      errorDescription: 'OAuth state verification failed. This may be a CSRF attack.'
     };
   }
 

@@ -9,7 +9,7 @@ namespace StarterApp.API.Services.Auth;
 /// </summary>
 public interface IGoogleOAuthService
 {
-    Task<string> ExchangeCodeForGoogleIdTokenAsync(string code, CancellationToken cancellationToken);
+    Task<string> ExchangeCodeForGoogleIdTokenAsync(string code, string codeVerifier, CancellationToken cancellationToken);
 
     Task<GoogleJsonWebSignature.Payload> ValidateIdTokenAsync(string idToken, CancellationToken cancellationToken);
 }

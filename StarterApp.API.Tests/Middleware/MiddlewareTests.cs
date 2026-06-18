@@ -6,9 +6,11 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Moq;
 using StarterApp.API.Constants;
 using StarterApp.API.Middleware;
+using StarterApp.API.Models.Settings;
 using StarterApp.API.Services.Core;
 
 namespace StarterApp.API.Tests.Middleware;
@@ -196,6 +198,67 @@ public sealed class MiddlewareTests
                 Password = "secret"
             }
         });
+    }
+
+    [Fact]
+    public async Task PathBaseRewriterMiddleware_HeaderInAllowlist_SetsPathBase()
+    {
+        var context = new DefaultHttpContext();
+        context.Request.Headers[AppHeaderNames.ForwardedPrefix] = "/api";
+
+        var middleware = BuildPathBaseMiddleware("/api");
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal("/api", context.Request.PathBase);
+    }
+
+    [Fact]
+    public async Task PathBaseRewriterMiddleware_HeaderNotInAllowlist_LeavesPathBaseDefault()
+    {
+        var context = new DefaultHttpContext();
+        context.Request.Headers[AppHeaderNames.ForwardedPrefix] = "/evil";
+
+        var middleware = BuildPathBaseMiddleware("/api");
+
+        await middleware.InvokeAsync(context);
+
+        Assert.True(context.Request.PathBase.Value is null or "");
+    }
+
+    [Fact]
+    public async Task PathBaseRewriterMiddleware_EmptyAllowlist_IgnoresHeader()
+    {
+        var context = new DefaultHttpContext();
+        context.Request.Headers[AppHeaderNames.ForwardedPrefix] = "/api";
+
+        var middleware = BuildPathBaseMiddleware();
+
+        await middleware.InvokeAsync(context);
+
+        Assert.True(context.Request.PathBase.Value is null or "");
+    }
+
+    [Fact]
+    public async Task PathBaseRewriterMiddleware_NoHeader_LeavesPathBaseUnchanged()
+    {
+        var context = new DefaultHttpContext();
+
+        var middleware = BuildPathBaseMiddleware("/api");
+
+        await middleware.InvokeAsync(context);
+
+        Assert.True(context.Request.PathBase.Value is null or "");
+    }
+
+    private static PathBaseRewriterMiddleware BuildPathBaseMiddleware(params string[] allowedPrefixes)
+    {
+        var settings = Options.Create(new ForwardedHeadersSettings
+        {
+            AllowedForwardedPrefixes = allowedPrefixes
+        });
+
+        return new PathBaseRewriterMiddleware(_ => Task.CompletedTask, settings);
     }
 
     private static ICorrelationIdService BuildCorrelationService()

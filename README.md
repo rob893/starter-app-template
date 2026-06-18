@@ -25,13 +25,13 @@ Click **“Use this template”** on GitHub to start a new project, then follow
 
 ## Tech stack
 
-| Layer | Tech |
-| --- | --- |
-| Backend | .NET 10, ASP.NET Core, EF Core, PostgreSQL, ASP.NET Identity, JWT, OpenTelemetry/App Insights |
-| Frontend | React 19, Vite, TypeScript, Tailwind v4, HeroUI v3, TanStack Query, axios |
-| Infra | Azure Bicep — App Service, App Insights + Log Analytics, Key Vault, Postgres Flexible Server |
-| CI/CD | GitHub Actions (OIDC to Azure; GitHub Pages) |
-| Tests | xUnit + Moq (API), Vitest (UI unit), Playwright (UI e2e) |
+| Layer    | Tech                                                                                          |
+| -------- | --------------------------------------------------------------------------------------------- |
+| Backend  | .NET 10, ASP.NET Core, EF Core, PostgreSQL, ASP.NET Identity, JWT, OpenTelemetry/App Insights |
+| Frontend | React 19, Vite, TypeScript, Tailwind v4, HeroUI v3, TanStack Query, axios                     |
+| Infra    | Azure Bicep — App Service, App Insights + Log Analytics, Key Vault, Postgres Flexible Server  |
+| CI/CD    | GitHub Actions (OIDC to Azure; GitHub Pages)                                                  |
+| Tests    | xUnit + Moq (API), Vitest (UI unit), Playwright (UI e2e)                                      |
 
 ## Repository structure
 
@@ -105,13 +105,12 @@ In non-Development environments the app loads secrets from the Key Vault at `Key
 managed identity. The `PrefixKeyVaultSecretManager` only reads secrets prefixed with `StarterApp--` (or
 `All--`) and maps `--` → `:`. Create these Key Vault secrets:
 
-| Key Vault secret name | Maps to config key |
-| --- | --- |
-| `StarterApp--Authentication--APISecret` | `Authentication:APISecret` (JWT signing key) |
-| `StarterApp--Postgres--DefaultConnection` | `Postgres:DefaultConnection` |
-| `StarterApp--Authentication--GoogleOAuthClientSecret` | Google OAuth secret |
-| `StarterApp--Authentication--GitHubOAuthClientSecret` | GitHub OAuth secret |
-| `StarterApp--Email--AcsAccessKey` | ACS email key (if email enabled) |
+| Key Vault secret name                                 | Maps to config key                           |
+| ----------------------------------------------------- | -------------------------------------------- |
+| `StarterApp--Authentication--APISecret`               | `Authentication:APISecret` (JWT signing key) |
+| `StarterApp--Postgres--DefaultConnection`             | `Postgres:DefaultConnection`                 |
+| `StarterApp--Authentication--GoogleOAuthClientSecret` | Google OAuth secret                          |
+| `StarterApp--Authentication--GitHubOAuthClientSecret` | GitHub OAuth secret                          |
 
 > The Application Insights connection string is injected by the Bicep as the `ApplicationInsightsConnectionString`
 > app setting, so it does **not** need a Key Vault secret. You may still override it with one

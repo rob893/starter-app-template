@@ -1,6 +1,8 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using StarterApp.API.Extensions;
 using StarterApp.API.Models.Dtos;
 using StarterApp.API.Models.QueryParameters;
@@ -8,8 +10,6 @@ using StarterApp.API.Models.Requests;
 using StarterApp.API.Models.Responses.Pagination;
 using StarterApp.API.Services.Core;
 using StarterApp.API.Services.Domain;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
 
 namespace StarterApp.API.Controllers.V1;
 
@@ -98,7 +98,7 @@ public sealed class NotesController : ServiceControllerBase
 
         var note = result.ValueOrThrow;
 
-        return this.CreatedAtAction(nameof(this.GetNoteByIdAsync), new { id = note.Id }, note);
+        return this.CreatedAtRoute(nameof(this.GetNoteByIdAsync), new { id = note.Id }, note);
     }
 
     /// <summary>

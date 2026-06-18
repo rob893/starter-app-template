@@ -10,7 +10,7 @@ namespace StarterApp.API.Services.Auth;
 /// </summary>
 public interface IGitHubOAuthService
 {
-    Task<string> ExchangeCodeForGithubAccessTokenAsync(string code, CancellationToken cancellationToken);
+    Task<string> ExchangeCodeForGithubAccessTokenAsync(string code, string codeVerifier, CancellationToken cancellationToken);
 
     Task<GitHubUser> GetGitHubUserAsync(string accessToken, CancellationToken cancellationToken);
 

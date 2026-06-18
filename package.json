@@ -2,7 +2,7 @@
   "name": "starter-app-template",
   "private": true,
   "scripts": {
-    "start": "cd StarterApp.API && dotnet watch run",
+    "start": "cd StarterApp.API && dotnet watch run --launch-profile https",
     "build-api": "cd StarterApp.API && dotnet build",
     "test-api": "dotnet test",
     "publish-api": "cd StarterApp.API && dotnet publish -c Release -o dist",

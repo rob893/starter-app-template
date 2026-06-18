@@ -38,7 +38,7 @@ public sealed class Startup
             .AddMemoryCache()
             .AddIdentityServices()
             .AddRateLimiterServices(this.configuration)
-            .AddCoreServices()
+            .AddCoreServices(this.configuration)
             .AddEmailServices(this.configuration)
             .AddAuthenticationServices(this.configuration)
             .AddDatabaseServices(this.configuration)

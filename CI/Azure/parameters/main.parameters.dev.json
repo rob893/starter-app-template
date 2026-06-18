@@ -16,6 +16,9 @@
     },
     "appServiceSku": {
       "value": "B1"
+    },
+    "postgresAllowAzureServicesAccess": {
+      "value": true
     }
   }
 }

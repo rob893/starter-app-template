@@ -38,7 +38,7 @@ public sealed class GoogleOAuthService : IGoogleOAuthService
         this.authSettings = authSettings?.Value ?? throw new ArgumentNullException(nameof(authSettings));
     }
 
-    public async Task<string> ExchangeCodeForGoogleIdTokenAsync(string code, CancellationToken cancellationToken)
+    public async Task<string> ExchangeCodeForGoogleIdTokenAsync(string code, string codeVerifier, CancellationToken cancellationToken)
     {
         using var client = this.httpClientFactory.CreateClient();
 
@@ -48,7 +48,8 @@ public sealed class GoogleOAuthService : IGoogleOAuthService
             { "client_secret", this.authSettings.GoogleOAuthClientSecret },
             { "code", code },
             { "grant_type", "authorization_code" },
-            { "redirect_uri", this.authSettings.GoogleOAuthRedirectUri.ToString() }
+            { "redirect_uri", this.authSettings.GoogleOAuthRedirectUri.ToString() },
+            { "code_verifier", codeVerifier }
         });
 
         var response = await client.PostAsync(new Uri("https://oauth2.googleapis.com/token"), encodedContent, cancellationToken);

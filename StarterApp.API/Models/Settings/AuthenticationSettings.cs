@@ -59,6 +59,11 @@ public sealed record AuthenticationSettings
     /// </summary>
     public string GitHubOAuthClientSecret { get; init; } = default!;
 
+    /// <summary>
+    /// GitHub OAuth redirect URI for exchanging authorization codes. Should be the api callback url.
+    /// </summary>
+    public Uri GitHubOAuthRedirectUri { get; init; } = default!;
+
     public string? CookieDomain { get; init; }
 
     public Uri UIBaseUrl { get; init; } = default!;
