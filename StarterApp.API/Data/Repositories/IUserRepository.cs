@@ -47,4 +47,19 @@ public interface IUserRepository : IRepository<User, CursorPaginationQueryParame
 
     /// <summary>Returns all refresh tokens for a device ID.</summary>
     Task<IReadOnlyList<RefreshToken>> GetRefreshTokensForDeviceAsync(string deviceId, bool track = true, CancellationToken cancellationToken = default);
+
+    /// <summary>Deletes all expired refresh tokens for the given user using a targeted bulk delete.</summary>
+    /// <param name="userId">The ID of the user whose expired refresh tokens should be removed.</param>
+    /// <param name="cancellationToken">A token to cancel the asynchronous operation.</param>
+    Task DeleteExpiredRefreshTokensAsync(int userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Loads a user tracked with the data required for token refresh: roles for JWT claims and only the
+    /// specified device's refresh tokens for rotation.
+    /// </summary>
+    /// <param name="userId">The ID of the user to load.</param>
+    /// <param name="deviceId">The device ID whose refresh tokens should be included.</param>
+    /// <param name="cancellationToken">A token to cancel the asynchronous operation.</param>
+    /// <returns>The tracked user, or <c>null</c> if no user with the given ID exists.</returns>
+    Task<User?> GetUserForTokenRefreshAsync(int userId, string deviceId, CancellationToken cancellationToken = default);
 }

@@ -53,6 +53,7 @@ public sealed class DataContext : IdentityDbContext<User, Role, int,
         builder.Entity<RefreshToken>(rToken =>
         {
             rToken.HasKey(k => new { k.UserId, k.DeviceId });
+            rToken.HasIndex(rt => rt.DeviceId);
         });
 
         builder.Entity<LinkedAccount>(linkedAccount =>

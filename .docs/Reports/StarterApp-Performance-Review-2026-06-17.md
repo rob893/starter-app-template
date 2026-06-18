@@ -56,15 +56,15 @@ The two genuinely larger refactors (the auth-context split P-FE-09 and infinite-
 
 | # | ID | Completed | Area | Title | Impact | Risk | Effort | Priority | Severity |
 |:---:|---|:---:|---|---|:---:|:---:|:---:|:---:|:---:|
-| 1 | P-BE-02 | ☐ | Backend (.NET API) | Missing index on `RefreshTokens.DeviceId` | 4 | 5 | 1 | 9.00 | Critical |
+| 1 | P-BE-02 | ✅ | Backend (.NET API) | Missing index on `RefreshTokens.DeviceId` | 4 | 5 | 1 | 9.00 | Critical |
 | 2 | P-BE-08 | ✅ | Backend (.NET API) | `GetByUsernameAsync` filters on non-indexed `UserName` column | 3 | 5 | 1 | 8.00 | High |
-| 3 | P-FE-02 | ☐ | Frontend (React SPA) | `ReactQueryDevtools` statically imported — bundled in production | 3 | 5 | 1 | 8.00 | High |
+| 3 | P-FE-02 | ✅ | Frontend (React SPA) | `ReactQueryDevtools` statically imported — bundled in production | 3 | 5 | 1 | 8.00 | High |
 | 4 | P-FE-08 | ☐ | Frontend (React SPA) | Artificial 1.3 s delays in OAuth callback flow | 3 | 4 | 1 | 7.00 | High |
-| 5 | P-BE-03 | ☐ | Backend (.NET API) | `JsonSerializerOptions` instances created per request in OAuth services | 2 | 4 | 1 | 6.00 | Medium |
+| 5 | P-BE-03 | ✅ | Backend (.NET API) | `JsonSerializerOptions` instances created per request in OAuth services | 2 | 4 | 1 | 6.00 | Medium |
 | 6 | P-BE-01 | n/a | Backend (.NET API) | `NoteService.GetNotesAsync` — all user notes loaded to memory; client-side title filter and pagination | 5 | 5 | 2 | 5.00 | Critical |
-| 7 | P-FE-06 | ☐ | Frontend (React SPA) | No global `staleTime` default — new queries silently refetch on every mount | 2 | 3 | 1 | 5.00 | Medium |
-| 8 | P-FE-01 | ☐ | Frontend (React SPA) | No route-level code splitting — all pages in the initial bundle | 4 | 5 | 2 | 4.50 | Critical |
-| 9 | P-BE-04 | ☐ | Backend (.NET API) | `GetRefreshTokensForDeviceAsync` over-fetches: loads all user tokens plus full role hierarchy | 3 | 5 | 2 | 4.00 | High |
+| 7 | P-FE-06 | ✅ | Frontend (React SPA) | No global `staleTime` default — new queries silently refetch on every mount | 2 | 3 | 1 | 5.00 | Medium |
+| 8 | P-FE-01 | ✅ | Frontend (React SPA) | No route-level code splitting — all pages in the initial bundle | 4 | 5 | 2 | 4.50 | Critical |
+| 9 | P-BE-04 | ✅ | Backend (.NET API) | `GetRefreshTokensForDeviceAsync` over-fetches: loads all user tokens plus full role hierarchy | 3 | 5 | 2 | 4.00 | High |
 | 10 | P-FE-07 | ☐ | Frontend (React SPA) | `allNotes` derived array recomputed on every render | 2 | 2 | 1 | 4.00 | Low |
 | 11 | P-FE-03 | ✅ | Frontend (React SPA) | `react-icons` in `dependencies` but never imported | 1 | 3 | 1 | 4.00 | Low |
 | 12 | P-BE-05 | ☐ | Backend (.NET API) | `UserRepository.AddIncludes` always eagerly loads `UserRoles → Role` and `LinkedAccounts` | 3 | 4 | 2 | 3.50 | High |
@@ -85,6 +85,8 @@ The two genuinely larger refactors (the auth-context split P-FE-09 and infinite-
 ### Findings
 
 #### P-BE-02: Missing index on `RefreshTokens.DeviceId`
+
+> **Status (2026-06-17): ✅ Fixed** — added `rToken.HasIndex(rt => rt.DeviceId)` in `DataContext.OnModelCreating` and a focused EF migration `20260618035137_AddRefreshTokenDeviceIdIndex` (`CreateIndex IX_RefreshTokens_DeviceId` on `RefreshTokens(DeviceId)`; matching `DropIndex` in `Down`). The token-refresh lookup now uses an index instead of a sequential scan.
 
 - **Severity / Priority:** Critical / 9.00
 - **Impact / Risk / Effort:** 4 / 5 / 1
@@ -130,6 +132,8 @@ The two genuinely larger refactors (the auth-context split P-FE-09 and infinite-
 ---
 
 #### P-BE-03: `JsonSerializerOptions` instances created per request in OAuth services
+
+> **Status (2026-06-17): ✅ Fixed** — the `jsonSerializerOptions` field in both `GoogleOAuthService` and `GitHubOAuthService` is now `private static readonly`, so the (thread-safe, read-only) options and their reflection cache are shared across requests instead of reallocated per Scoped instance.
 
 - **Severity / Priority:** Medium / 6.00
 - **Impact / Risk / Effort:** 2 / 4 / 1
@@ -207,6 +211,8 @@ The two genuinely larger refactors (the auth-context split P-FE-09 and infinite-
 ---
 
 #### P-BE-04: `GetRefreshTokensForDeviceAsync` over-fetches all user tokens plus full role hierarchy
+
+> **Status (2026-06-17): ✅ Fixed** — `GetRefreshTokensForDeviceAsync` is now lean (filters by `DeviceId`, no `Include`s), used solely for the HMAC eligibility match. `IsTokenEligibleForRefreshAsync` was rewritten to: lean fetch → hash-match (identical logic) → reject if no match/expired → prune expired tokens via a targeted `DeleteExpiredRefreshTokensAsync` (`ExecuteDeleteAsync`, no in-memory load) → load the user with roles + only this device's tokens via the new `GetUserForTokenRefreshAsync` (filtered `Include`). Roles/other-device tokens are no longer loaded on the eligibility path or on failed attempts.
 
 - **Severity / Priority:** High / 4.00
 - **Impact / Risk / Effort:** 3 / 5 / 2
@@ -403,6 +409,8 @@ The two genuinely larger refactors (the auth-context split P-FE-09 and infinite-
 
 #### P-FE-02: `ReactQueryDevtools` statically imported — bundled in production
 
+> **Status (2026-06-17): ✅ Fixed** — moved the devtools into a new `src/components/DevTools.tsx` and render it in `main.tsx` only under `import.meta.env.DEV` via `React.lazy` + `Suspense`. The dynamic, dev-gated import lets Vite dead-code-eliminate it: verified `@tanstack/react-query-devtools`/`ReactQueryDevtools` no longer appear in `dist/assets/*.js`.
+
 - **Severity / Priority:** High / 8.00
 - **Impact / Risk / Effort:** 3 / 5 / 1
 - **Location(s):** `starter-app-ui/src/main.tsx:6,34`
@@ -477,6 +485,8 @@ The two genuinely larger refactors (the auth-context split P-FE-09 and infinite-
 
 #### P-FE-06: No global `staleTime` default — new queries silently refetch on every mount
 
+> **Status (2026-06-17): ✅ Fixed** — added `staleTime: 60 * 1000` to the `QueryClient` `defaultOptions.queries` in `main.tsx`, so queries no longer default to instantly-stale (refetch on every mount). Individual queries can still override it.
+
 - **Severity / Priority:** Medium / 5.00
 - **Impact / Risk / Effort:** 2 / 3 / 1
 - **Location(s):** `starter-app-ui/src/main.tsx:11–26`
@@ -514,6 +524,8 @@ The two genuinely larger refactors (the auth-context split P-FE-09 and infinite-
 ---
 
 #### P-FE-01: No route-level code splitting — all pages in the initial bundle
+
+> **Status (2026-06-17): ✅ Fixed** — all six page components in `App.tsx` are now `React.lazy`-loaded and the `<Routes>` are wrapped in `<Suspense>` with a centered `Spinner` fallback. Vite now emits a separate chunk per page (`HomePage`, `LoginPage`, `RegisterPage`, `OAuthCallbackPage`, `ForgotPasswordPage`, `ResetPasswordPage`, …), so visitors only download the route they hit. Route structure and the `OAuthCallbackPage` `provider` props are unchanged.
 
 - **Severity / Priority:** Critical / 4.50
 - **Impact / Risk / Effort:** 4 / 5 / 2

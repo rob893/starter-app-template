@@ -48,20 +48,18 @@ public sealed class JwtTokenServiceTests
         Assert.False(string.IsNullOrWhiteSpace(refreshToken));
         Assert.Single(user.RefreshTokens);
 
-        // EF would populate the navigation property; do so manually for the round-trip.
-        foreach (var token in user.RefreshTokens)
-        {
-            token.User = user;
-        }
-
         this.userRepositoryMock
-            .Setup(r => r.GetRefreshTokensForDeviceAsync(DeviceId, true, It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetRefreshTokensForDeviceAsync(DeviceId, false, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user.RefreshTokens);
+        this.userRepositoryMock
+            .Setup(r => r.GetUserForTokenRefreshAsync(It.IsAny<int>(), DeviceId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(user);
 
         var (isEligible, eligibleUser) = await sut.IsTokenEligibleForRefreshAsync(refreshToken, DeviceId, CancellationToken.None);
 
         Assert.True(isEligible);
         Assert.Same(user, eligibleUser);
+        this.userRepositoryMock.Verify(r => r.DeleteExpiredRefreshTokensAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -71,19 +69,16 @@ public sealed class JwtTokenServiceTests
         var user = BuildUser();
 
         await sut.GenerateAndSaveRefreshTokenForUserAsync(user, DeviceId, CancellationToken.None);
-        foreach (var token in user.RefreshTokens)
-        {
-            token.User = user;
-        }
 
         this.userRepositoryMock
-            .Setup(r => r.GetRefreshTokensForDeviceAsync(DeviceId, true, It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetRefreshTokensForDeviceAsync(DeviceId, false, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user.RefreshTokens);
 
         var (isEligible, eligibleUser) = await sut.IsTokenEligibleForRefreshAsync("garbage-token-value", DeviceId, CancellationToken.None);
 
         Assert.False(isEligible);
         Assert.Null(eligibleUser);
+        this.userRepositoryMock.Verify(r => r.GetUserForTokenRefreshAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -91,7 +86,7 @@ public sealed class JwtTokenServiceTests
     {
         var sut = this.CreateSut();
         this.userRepositoryMock
-            .Setup(r => r.GetRefreshTokensForDeviceAsync(DeviceId, true, It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetRefreshTokensForDeviceAsync(DeviceId, false, It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
 
         var (isEligible, eligibleUser) = await sut.IsTokenEligibleForRefreshAsync("any-token", DeviceId, CancellationToken.None);
@@ -109,18 +104,19 @@ public sealed class JwtTokenServiceTests
         var refreshToken = await sut.GenerateAndSaveRefreshTokenForUserAsync(user, DeviceId, CancellationToken.None);
         foreach (var token in user.RefreshTokens)
         {
-            token.User = user;
             token.Expiration = DateTimeOffset.UtcNow.AddMinutes(-5);
         }
 
         this.userRepositoryMock
-            .Setup(r => r.GetRefreshTokensForDeviceAsync(DeviceId, true, It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetRefreshTokensForDeviceAsync(DeviceId, false, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user.RefreshTokens);
 
         var (isEligible, eligibleUser) = await sut.IsTokenEligibleForRefreshAsync(refreshToken, DeviceId, CancellationToken.None);
 
         Assert.False(isEligible);
         Assert.Null(eligibleUser);
+        this.userRepositoryMock.Verify(r => r.DeleteExpiredRefreshTokensAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+        this.userRepositoryMock.Verify(r => r.GetUserForTokenRefreshAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -131,30 +127,20 @@ public sealed class JwtTokenServiceTests
 
         var refreshToken = await sut.GenerateAndSaveRefreshTokenForUserAsync(user, DeviceId, CancellationToken.None);
 
-        var expiredToken = new RefreshToken
-        {
-            DeviceId = "other-device",
-            TokenHash = Convert.ToBase64String(Encoding.UTF8.GetBytes("hash")),
-            TokenSalt = Convert.ToBase64String(Encoding.UTF8.GetBytes("salt")),
-            Expiration = DateTimeOffset.UtcNow.AddMinutes(-30),
-            User = user
-        };
-        user.RefreshTokens.Add(expiredToken);
-
-        foreach (var token in user.RefreshTokens)
-        {
-            token.User = user;
-        }
-
+        // The lean device query returns only this device's (valid) token; expired tokens for other
+        // devices are pruned by the targeted DeleteExpiredRefreshTokensAsync delete.
         this.userRepositoryMock
-            .Setup(r => r.GetRefreshTokensForDeviceAsync(DeviceId, true, It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetRefreshTokensForDeviceAsync(DeviceId, false, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user.RefreshTokens);
+        this.userRepositoryMock
+            .Setup(r => r.GetUserForTokenRefreshAsync(It.IsAny<int>(), DeviceId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(user);
 
         var (isEligible, eligibleUser) = await sut.IsTokenEligibleForRefreshAsync(refreshToken, DeviceId, CancellationToken.None);
 
         Assert.True(isEligible);
         Assert.Same(user, eligibleUser);
-        Assert.DoesNotContain(expiredToken, user.RefreshTokens);
+        this.userRepositoryMock.Verify(r => r.DeleteExpiredRefreshTokensAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

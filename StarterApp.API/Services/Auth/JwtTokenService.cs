@@ -35,35 +35,30 @@ public sealed class JwtTokenService : IJwtTokenService
         ArgumentException.ThrowIfNullOrWhiteSpace(refreshToken);
         ArgumentException.ThrowIfNullOrWhiteSpace(deviceId);
 
-        var refreshTokens = await this.userRepository.GetRefreshTokensForDeviceAsync(deviceId, track: true, cancellationToken);
+        var refreshTokens = await this.userRepository.GetRefreshTokensForDeviceAsync(deviceId, track: false, cancellationToken);
 
         if (refreshTokens.Count == 0)
         {
             return (false, null);
         }
 
-        var refreshTokenObj = refreshTokens.FirstOrDefault(token => VerifyTokenHash(refreshToken, token.TokenHash, token.TokenSalt));
+        var matched = refreshTokens.FirstOrDefault(token => VerifyTokenHash(refreshToken, token.TokenHash, token.TokenSalt));
 
-        if (refreshTokenObj == null)
+        if (matched == null)
         {
             return (false, null);
         }
 
-        var user = refreshTokenObj.User;
+        if (matched.Expiration <= DateTimeOffset.UtcNow)
+        {
+            return (false, null);
+        }
+
+        await this.userRepository.DeleteExpiredRefreshTokensAsync(matched.UserId, cancellationToken);
+
+        var user = await this.userRepository.GetUserForTokenRefreshAsync(matched.UserId, deviceId, cancellationToken);
 
         if (user == null)
-        {
-            return (false, null);
-        }
-
-        var expiredTokens = user.RefreshTokens.Where(token => token.Expiration <= DateTimeOffset.UtcNow).ToList();
-        if (expiredTokens.Count > 0)
-        {
-            user.RefreshTokens.RemoveAll(token => token.Expiration <= DateTimeOffset.UtcNow);
-            await this.userRepository.SaveChangesAsync(cancellationToken);
-        }
-
-        if (refreshTokenObj.Expiration <= DateTimeOffset.UtcNow)
         {
             return (false, null);
         }

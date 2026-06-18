@@ -16,7 +16,7 @@ namespace StarterApp.API.Services.Auth;
 /// </summary>
 public sealed class GoogleOAuthService : IGoogleOAuthService
 {
-    private readonly JsonSerializerOptions jsonSerializerOptions = new()
+    private static readonly JsonSerializerOptions jsonSerializerOptions = new()
     {
         PropertyNameCaseInsensitive = true
     };
@@ -61,7 +61,7 @@ public sealed class GoogleOAuthService : IGoogleOAuthService
         }
 
         var content = await response.Content.ReadAsStringAsync(cancellationToken);
-        var tokenResponse = JsonSerializer.Deserialize<GoogleTokenResponse>(content, this.jsonSerializerOptions);
+        var tokenResponse = JsonSerializer.Deserialize<GoogleTokenResponse>(content, jsonSerializerOptions);
 
         return tokenResponse?.IdToken ?? throw new InvalidOperationException("Google ID token not found in response.");
     }

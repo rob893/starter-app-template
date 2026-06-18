@@ -19,7 +19,7 @@ public sealed class GitHubOAuthService : IGitHubOAuthService
 {
     private const string AppName = "StarterApp";
 
-    private readonly JsonSerializerOptions jsonSerializerOptions = new()
+    private static readonly JsonSerializerOptions jsonSerializerOptions = new()
     {
         PropertyNameCaseInsensitive = true
     };
@@ -68,7 +68,7 @@ public sealed class GitHubOAuthService : IGitHubOAuthService
         client.DefaultRequestHeaders.UserAgent.ParseAdd(AppName);
 
         var response = await client.GetStringAsync(new Uri("https://api.github.com/user"), cancellationToken);
-        return JsonSerializer.Deserialize<GitHubUser>(response, this.jsonSerializerOptions)
+        return JsonSerializer.Deserialize<GitHubUser>(response, jsonSerializerOptions)
             ?? throw new InvalidOperationException("Failed to deserialize GitHub user information.");
     }
 
@@ -86,7 +86,7 @@ public sealed class GitHubOAuthService : IGitHubOAuthService
         }
 
         var content = await response.Content.ReadAsStringAsync(cancellationToken);
-        return JsonSerializer.Deserialize<List<GitHubEmail>>(content, this.jsonSerializerOptions)
+        return JsonSerializer.Deserialize<List<GitHubEmail>>(content, jsonSerializerOptions)
             ?? throw new InvalidOperationException("Failed to deserialize GitHub email response.");
     }
 }

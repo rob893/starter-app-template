@@ -171,16 +171,33 @@ public sealed class UserRepository : Repository<User, CursorPaginationQueryParam
             query = query.AsNoTracking();
         }
 
-        var tokens = await query
+        return await query
             .Where(t => t.DeviceId == deviceId)
-            .Include(t => t.User)
-            .ThenInclude(u => u.UserRoles)
-            .ThenInclude(ur => ur.Role)
-            .Include(t => t.User)
-            .ThenInclude(u => u.RefreshTokens)
             .ToListAsync(cancellationToken);
+    }
 
-        return tokens;
+    /// <inheritdoc />
+    public async Task DeleteExpiredRefreshTokensAsync(int userId, CancellationToken cancellationToken = default)
+    {
+        await this.Context.Set<RefreshToken>()
+            .Where(t => t.UserId == userId && t.Expiration <= DateTimeOffset.UtcNow)
+            .ExecuteDeleteAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<User?> GetUserForTokenRefreshAsync(int userId, string deviceId, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(deviceId);
+
+        // AsSingleQuery: this loads one user (by PK) with its roles and only this device's tokens —
+        // small collections, so a single JOINed round-trip beats the globally-configured split query
+        // (which would otherwise fan out into ~3 statements on every successful refresh).
+        return await this.Context.Users
+            .AsSingleQuery()
+            .Include(u => u.UserRoles)
+            .ThenInclude(ur => ur.Role)
+            .Include(u => u.RefreshTokens.Where(t => t.DeviceId == deviceId))
+            .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
     }
 
     /// <inheritdoc />
