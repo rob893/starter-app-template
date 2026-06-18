@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -9,6 +10,7 @@ using Microsoft.Extensions.Options;
 using Moq;
 using StarterApp.API.Constants;
 using StarterApp.API.Controllers.V1;
+using StarterApp.API.Core;
 using StarterApp.API.Data.Repositories;
 using StarterApp.API.Models.Entities;
 using StarterApp.API.Models.Requests.Auth;
@@ -133,6 +135,90 @@ public sealed class AuthControllerTests
     }
 
     [Fact]
+    public async Task RegisterAsync_DuplicateUserName_ReturnsGenericMessageWithoutDisclosure()
+    {
+        this.userRepositoryMock
+            .Setup(r => r.CreateUserWithPasswordAsync(It.IsAny<User>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(IdentityResult.Failed(new IdentityError
+            {
+                Code = nameof(IdentityErrorDescriber.DuplicateUserName),
+                Description = "Username 'newuser' is already taken."
+            }));
+
+        var request = new RegisterUserRequest
+        {
+            UserName = "newuser",
+            Email = "newuser@example.com",
+            Password = "Password1!",
+            DeviceId = DeviceId
+        };
+
+        var result = await this.sut.RegisterAsync(request, CancellationToken.None);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
+        var problem = Assert.IsType<ProblemDetailsWithErrors>(badRequest.Value);
+        var messages = Assert.IsType<List<string>>(problem.Extensions["errors"]);
+        Assert.Equal(new[] { "Registration could not be completed." }, messages);
+        Assert.DoesNotContain(messages, m => m.Contains("newuser", System.StringComparison.Ordinal));
+        Assert.DoesNotContain(messages, m => m.Contains("taken", System.StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task RegisterAsync_DuplicateEmail_ReturnsGenericMessageWithoutDisclosure()
+    {
+        this.userRepositoryMock
+            .Setup(r => r.CreateUserWithPasswordAsync(It.IsAny<User>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(IdentityResult.Failed(new IdentityError
+            {
+                Code = nameof(IdentityErrorDescriber.DuplicateEmail),
+                Description = "Email 'taken@example.com' is already taken."
+            }));
+
+        var request = new RegisterUserRequest
+        {
+            UserName = "newuser",
+            Email = "taken@example.com",
+            Password = "Password1!",
+            DeviceId = DeviceId
+        };
+
+        var result = await this.sut.RegisterAsync(request, CancellationToken.None);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
+        var problem = Assert.IsType<ProblemDetailsWithErrors>(badRequest.Value);
+        var messages = Assert.IsType<List<string>>(problem.Extensions["errors"]);
+        Assert.Equal(new[] { "Registration could not be completed." }, messages);
+        Assert.DoesNotContain(messages, m => m.Contains("taken@example.com", System.StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task RegisterAsync_NonEnumeratingError_RetainsDescription()
+    {
+        this.userRepositoryMock
+            .Setup(r => r.CreateUserWithPasswordAsync(It.IsAny<User>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(IdentityResult.Failed(new IdentityError
+            {
+                Code = nameof(IdentityErrorDescriber.PasswordTooShort),
+                Description = "Passwords must be at least 8 characters."
+            }));
+
+        var request = new RegisterUserRequest
+        {
+            UserName = "newuser",
+            Email = "newuser@example.com",
+            Password = "short",
+            DeviceId = DeviceId
+        };
+
+        var result = await this.sut.RegisterAsync(request, CancellationToken.None);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
+        var problem = Assert.IsType<ProblemDetailsWithErrors>(badRequest.Value);
+        var messages = Assert.IsType<List<string>>(problem.Extensions["errors"]);
+        Assert.Contains("Passwords must be at least 8 characters.", messages);
+    }
+
+    [Fact]
     public async Task LoginAsync_Success_Returns200()
     {
         var user = BuildUser();
@@ -152,6 +238,10 @@ public sealed class AuthControllerTests
     [Fact]
     public async Task LoginAsync_UnknownUser_Returns401()
     {
+        var userManagerMock = BuildUserManagerMock();
+        userManagerMock.Object.PasswordHasher = new PasswordHasher<User>();
+        this.userRepositoryMock.Setup(r => r.UserManager).Returns(userManagerMock.Object);
+
         this.userRepositoryMock
             .Setup(r => r.GetByUsernameAsync(It.IsAny<string>(), It.IsAny<Expression<System.Func<User, object>>[]>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((User?)null);

@@ -28,6 +28,11 @@ runs:
       shell: bash
       working-directory: starter-app-ui
 
+    - name: Audit dependencies
+      run: npm audit --audit-level=high
+      shell: bash
+      working-directory: starter-app-ui
+
     - name: Lint
       run: npm run lint
       shell: bash

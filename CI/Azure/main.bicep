@@ -78,6 +78,16 @@ param logAnalyticsRetentionInDays int = 30
 ])
 param appInsightsRetentionInDays int = 90
 
+@description('Key Vault public network access. Defaults to Enabled because this template has no VNet/private endpoint and the App Service reads secrets over the public endpoint via managed identity. For production, set to Disabled and add a private endpoint.')
+@allowed([
+  'Enabled'
+  'Disabled'
+])
+param keyVaultPublicNetworkAccess string = 'Enabled'
+
+@description('Enable Key Vault purge protection. One-way switch, so it defaults to true for non-dev environments and false (unset) for dev to keep teardown/recreate simple.')
+param keyVaultEnablePurgeProtection bool = (environment != 'dev')
+
 @description('Additional resource tags merged over the defaults (environment, project, managedBy).')
 param tags object = {}
 
@@ -126,6 +136,8 @@ module keyVault 'modules/keyVault.bicep' = {
     namePrefix: namePrefix
     environment: environment
     location: location
+    keyVaultPublicNetworkAccess: keyVaultPublicNetworkAccess
+    keyVaultEnablePurgeProtection: keyVaultEnablePurgeProtection
     tags: resolvedTags
   }
 }

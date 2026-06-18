@@ -44,6 +44,12 @@ export function OAuthCallbackPage({ provider }: { provider: OAuthProvider }) {
 
         const result = handleOAuthCallbackFromUrl(provider);
 
+        // Scrub the single-use OAuth `code`/`state` from the URL and history once they have been
+        // read and CSRF-verified, so they no longer linger in the address bar or window.history.
+        // HashRouter keeps the route in the hash, so preserve the route portion and drop the query.
+        const cleanHash = window.location.hash.split('?')[0];
+        window.history.replaceState(null, '', window.location.pathname + window.location.search + cleanHash);
+
         if (!result) {
           setError('Invalid callback parameters');
           setStep('error');

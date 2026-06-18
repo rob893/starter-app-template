@@ -105,6 +105,99 @@ public sealed class MiddlewareTests
         Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
     }
 
+    [Fact]
+    public async Task OpenApiBasicAuth_MalformedHeaderWithoutColon_Returns401NotCrash()
+    {
+        var context = BuildOpenApiContext("Zm9vYmFy"); // base64("foobar") - no colon separator
+
+        var nextCalled = false;
+        var middleware = new OpenApiBasicAuthMiddleware(_ => { nextCalled = true; return Task.CompletedTask; });
+
+        await middleware.InvokeAsync(context, BuildOpenApiOptions());
+
+        Assert.False(nextCalled);
+        Assert.Equal(StatusCodes.Status401Unauthorized, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task OpenApiBasicAuth_InvalidBase64_Returns401NotCrash()
+    {
+        var context = BuildOpenApiContext("not-valid-base64!!!");
+
+        var nextCalled = false;
+        var middleware = new OpenApiBasicAuthMiddleware(_ => { nextCalled = true; return Task.CompletedTask; });
+
+        await middleware.InvokeAsync(context, BuildOpenApiOptions());
+
+        Assert.False(nextCalled);
+        Assert.Equal(StatusCodes.Status401Unauthorized, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task OpenApiBasicAuth_EmptyTokenAfterScheme_Returns401NotCrash()
+    {
+        var context = BuildOpenApiContext(string.Empty); // header is exactly "Basic " (no token)
+
+        var nextCalled = false;
+        var middleware = new OpenApiBasicAuthMiddleware(_ => { nextCalled = true; return Task.CompletedTask; });
+
+        await middleware.InvokeAsync(context, BuildOpenApiOptions());
+
+        Assert.False(nextCalled);
+        Assert.Equal(StatusCodes.Status401Unauthorized, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task OpenApiBasicAuth_ValidCredentials_CallsNext()
+    {
+        var encoded = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("admin:secret"));
+        var context = BuildOpenApiContext(encoded);
+
+        var nextCalled = false;
+        var middleware = new OpenApiBasicAuthMiddleware(_ => { nextCalled = true; return Task.CompletedTask; });
+
+        await middleware.InvokeAsync(context, BuildOpenApiOptions());
+
+        Assert.True(nextCalled);
+    }
+
+    [Fact]
+    public async Task OpenApiBasicAuth_WrongPassword_Returns401()
+    {
+        var encoded = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("admin:wrong"));
+        var context = BuildOpenApiContext(encoded);
+
+        var nextCalled = false;
+        var middleware = new OpenApiBasicAuthMiddleware(_ => { nextCalled = true; return Task.CompletedTask; });
+
+        await middleware.InvokeAsync(context, BuildOpenApiOptions());
+
+        Assert.False(nextCalled);
+        Assert.Equal(StatusCodes.Status401Unauthorized, context.Response.StatusCode);
+    }
+
+    private static DefaultHttpContext BuildOpenApiContext(string base64Credentials)
+    {
+        var context = new DefaultHttpContext();
+        context.Request.Path = "/swagger";
+        context.Request.Headers["Authorization"] = $"Basic {base64Credentials}";
+        return context;
+    }
+
+    private static Microsoft.Extensions.Options.IOptions<StarterApp.API.Models.Settings.OpenApiSettings> BuildOpenApiOptions()
+    {
+        return Microsoft.Extensions.Options.Options.Create(new StarterApp.API.Models.Settings.OpenApiSettings
+        {
+            Enabled = true,
+            AuthSettings = new StarterApp.API.Models.Settings.OpenApiAuthSettings
+            {
+                RequireAuth = true,
+                Username = "admin",
+                Password = "secret"
+            }
+        });
+    }
+
     private static ICorrelationIdService BuildCorrelationService()
     {
         var mock = new Mock<ICorrelationIdService>();

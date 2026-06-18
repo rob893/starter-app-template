@@ -59,13 +59,13 @@ Most items are quick configuration or small code changes; the infra ones are Bic
 | 4 | S-FE-03 | ✅ | Frontend (React SPA) | Internal debug details (correlationId/traceId/request path) shown to end users | 2 | 2 | 1 | 4.00 | Low |
 | 5 | S-FE-04 | ✅ | Frontend (React SPA) | CSRF cookie read with unanchored regex (cookie-name confusion) | 2 | 2 | 1 | 4.00 | Low |
 | 6 | S-BE-06 | ✅ | Backend & Infrastructure | CORS fallback `WithOrigins("*")` combined with `AllowCredentials()` | 4 | 2 | 2 | 3.00 | Medium |
-| 7 | S-BE-04 | ☐ | Backend & Infrastructure | Username/email enumeration via login timing + registration errors | 2 | 4 | 2 | 3.00 | Medium |
+| 7 | S-BE-04 | ✅ | Backend & Infrastructure | Username/email enumeration via login timing + registration errors | 2 | 4 | 2 | 3.00 | Medium |
 | 8 | S-FE-05 | ☐ | Frontend (React SPA) | `.env` committed to source control | 2 | 1 | 1 | 3.00 | Low |
-| 9 | S-FE-09 | ☐ | Frontend (React SPA) | Vulnerable/outdated dev dependency (esbuild) + no `npm audit` gate | 2 | 1 | 1 | 3.00 | Low |
-| 10 | S-BE-10 | ☐ | Backend & Infrastructure | OpenAPI Basic-Auth: non-constant-time compare + crash on malformed header | 1 | 2 | 1 | 3.00 | Low |
-| 11 | S-BE-11 | ☐ | Backend & Infrastructure | CSRF double-submit: non-constant-time compare & non-CSPRNG (`Guid`) token | 1 | 2 | 1 | 3.00 | Low |
-| 12 | S-BE-08 | ☐ | Backend & Infrastructure | Key Vault public network access enabled; purge protection disabled | 3 | 2 | 2 | 2.50 | Medium |
-| 13 | S-FE-02 | ☐ | Frontend (React SPA) | OAuth `code`/`state` left in URL hash & browser history (not cleared) | 3 | 2 | 2 | 2.50 | Medium |
+| 9 | S-FE-09 | ◑ | Frontend (React SPA) | Vulnerable/outdated dev dependency (esbuild) + no `npm audit` gate | 2 | 1 | 1 | 3.00 | Low |
+| 10 | S-BE-10 | ✅ | Backend & Infrastructure | OpenAPI Basic-Auth: non-constant-time compare + crash on malformed header | 1 | 2 | 1 | 3.00 | Low |
+| 11 | S-BE-11 | ✅ | Backend & Infrastructure | CSRF double-submit: non-constant-time compare & non-CSPRNG (`Guid`) token | 1 | 2 | 1 | 3.00 | Low |
+| 12 | S-BE-08 | ✅ | Backend & Infrastructure | Key Vault public network access enabled; purge protection disabled | 3 | 2 | 2 | 2.50 | Medium |
+| 13 | S-FE-02 | ✅ | Frontend (React SPA) | OAuth `code`/`state` left in URL hash & browser history (not cleared) | 3 | 2 | 2 | 2.50 | Medium |
 | 14 | S-BE-09 | ☐ | Backend & Infrastructure | PathBaseRewriter trusts arbitrary `X-Forwarded-Prefix` from any client | 2 | 3 | 2 | 2.50 | Medium |
 | 15 | S-BE-07 | ☐ | Backend & Infrastructure | Postgres publicly reachable + "allow all Azure services" firewall rule | 4 | 3 | 3 | 2.33 | High |
 | 16 | S-FE-06 | ☐ | Frontend (React SPA) | Access token held in JS-reachable memory — inherent XSS exfiltration exposure | 4 | 2 | 3 | 2.00 | Medium |
@@ -135,6 +135,9 @@ Most items are quick configuration or small code changes; the infra ones are Bic
   Prefer linking strictly by stable provider subject id, never by email alone.
 
 #### S-BE-04: Username/email enumeration via login timing + registration errors
+
+> **Status (2026-06-17): ✅ Fixed** — login now performs a dummy password verification when the user isn't found, equalizing the PBKDF2 timing so the response no longer reveals account existence; registration returns a generic message for duplicate-username/email (other validation errors keep their detail). +3 tests.
+
 - **Severity / Priority:** Medium / 3.0
 - **Impact / Risk / Effort:** 2 / 4 / 2
 - **Location(s):** `StarterApp.API/Controllers/V1/AuthController.cs:129-142` (early return before password check); `:84-87` (register returns Identity `DuplicateUserName`/`DuplicateEmail` descriptions)
@@ -158,6 +161,9 @@ Most items are quick configuration or small code changes; the infra ones are Bic
   ```
 
 #### S-BE-10: OpenAPI Basic-Auth — non-constant-time compare + crash on malformed header
+
+> **Status (2026-06-17): ✅ Fixed** — the Basic-auth credential compare now uses `CryptographicOperations.FixedTimeEquals`, and credential parsing (`TryParseBasicCredentials`) returns 401 (never 500) for malformed / invalid-base64 / no-colon / empty-token headers. +5 middleware tests.
+
 - **Severity / Priority:** Low / 3.0
 - **Impact / Risk / Effort:** 1 / 2 / 1
 - **Location(s):** `StarterApp.API/Middleware/OpenApiBasicAuthMiddleware.cs:54-55` (`Split(':',2)[1]`); `:77-81` (`string.Equals` comparisons)
@@ -166,6 +172,9 @@ Most items are quick configuration or small code changes; the infra ones are Bic
 - **Recommendation:** Compare with `CryptographicOperations.FixedTimeEquals` over UTF-8 bytes, and guard the split (return 401 on malformed input rather than indexing blindly).
 
 #### S-BE-11: CSRF double-submit — non-constant-time compare and non-CSPRNG token
+
+> **Status (2026-06-17): ✅ Fixed** — the CSRF token is now generated from a CSPRNG (32 bytes via `RandomNumberGenerator`, base64url) instead of `Guid.NewGuid()`, and the double-submit header/cookie comparison uses a null-safe `FixedTimeEquals` helper.
+
 - **Severity / Priority:** Low / 3.0
 - **Impact / Risk / Effort:** 1 / 2 / 1
 - **Location(s):** `StarterApp.API/Controllers/V1/AuthController.cs:504-510` (`csrfHeader != csrfCookie`); `:563` (`Guid.NewGuid().ToString()` CSRF token)
@@ -174,6 +183,9 @@ Most items are quick configuration or small code changes; the infra ones are Bic
 - **Recommendation:** Generate the CSRF token from `RandomNumberGenerator` (e.g., 32 random bytes, base64url) and compare with `CryptographicOperations.FixedTimeEquals`.
 
 #### S-BE-08: Key Vault public network access enabled; purge protection disabled
+
+> **Status (2026-06-17): ✅ Fixed** — `enablePurgeProtection` now defaults on for non-dev environments (irreversible-safe `true`-or-null), and `publicNetworkAccess` is parameterized (default `Enabled` so the VNet-less deploy keeps working; the ACL switches to `Deny` when set to `Disabled`). For full network lockdown, prod sets `publicNetworkAccess: 'Disabled'` + a private endpoint. `az bicep build` clean.
+
 - **Severity / Priority:** Medium / 2.5
 - **Impact / Risk / Effort:** 3 / 2 / 2
 - **Location(s):** `CI/Azure/modules/keyVault.bicep:32-36` (`publicNetworkAccess: 'Enabled'`, `networkAcls.defaultAction: 'Allow'`); missing `enablePurgeProtection`
@@ -288,6 +300,9 @@ Most items are quick configuration or small code changes; the infra ones are Bic
 - **Recommendation:** Replace tracked `.env` with a committed `.env.example` (documented, no values) and add `.env` to `.gitignore`. Add a comment that only public, non-secret config belongs in `VITE_*`; OAuth client secrets stay server-side.
 
 #### S-FE-09: Vulnerable/outdated dev dependency (esbuild) + no audit gate
+
+> **Status (2026-06-17): ◑ Partial** — a CI `npm audit --audit-level=high` gate was added to the shared UI build action. The esbuild advisory itself is **low-severity, dev-server only** and currently has **no non-breaking fix** (Vite is already at its latest major, which pins esbuild 0.27.x); `npm audit fix` could not resolve it without a breaking Vite bump, so it was deliberately left rather than forcing a break. Revisit when an upstream patch lands.
+
 - **Severity / Priority:** Low / 3.0
 - **Impact / Risk / Effort:** 2 / 1 / 1
 - **Location(s):** starter-app-ui/package.json:51 (vite → esbuild); `npm audit` reports GHSA-g7r4-m6w7-qqqr
@@ -296,6 +311,9 @@ Most items are quick configuration or small code changes; the infra ones are Bic
 - **Recommendation:** Run `npm audit fix` (bumps esbuild via Vite), and add `npm audit --audit-level=high` (or Dependabot) to CI so known-vuln packages are surfaced on every PR.
 
 #### S-FE-02: OAuth `code`/`state` left in URL hash & browser history
+
+> **Status (2026-06-17): ✅ Fixed** — after the OAuth callback reads and CSRF-verifies the `code`/`state`, the URL/history is scrubbed via `history.replaceState` (route preserved, query dropped), so the single-use code no longer persists in the address bar or `window.history`. +2 tests.
+
 - **Severity / Priority:** Medium / 2.5
 - **Impact / Risk / Effort:** 3 / 2 / 2
 - **Location(s):** starter-app-ui/src/utils/oauthUtils.ts:86-97 (reads `window.location.hash`); starter-app-ui/src/pages/OAuthCallbackPage.tsx:47-97 (processes but never clears the hash)

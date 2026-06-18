@@ -2,8 +2,15 @@ using System;
 using System.Globalization;
 using System.Linq;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using StarterApp.API.Constants;
 using StarterApp.API.Data.Repositories;
 using StarterApp.API.Extensions;
@@ -16,12 +23,6 @@ using StarterApp.API.Models.Settings;
 using StarterApp.API.Services.Auth;
 using StarterApp.API.Services.Core;
 using StarterApp.API.Services.Domain;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-
 using static StarterApp.API.Utilities.UtilityFunctions;
 
 namespace StarterApp.API.Controllers.V1;
@@ -31,6 +32,31 @@ namespace StarterApp.API.Controllers.V1;
 [ApiController]
 public sealed class AuthController : ServiceControllerBase
 {
+    /// <summary>
+    /// A precomputed valid Identity password hash used solely to equalize timing on the
+    /// "user not found" login path, preventing username/email enumeration via timing analysis.
+    /// The default <see cref="PasswordHasher{TUser}"/> ignores the user argument during verification,
+    /// so the value only needs to be a valid hash that burns comparable PBKDF2 work.
+    /// </summary>
+    private static readonly string dummyPasswordHash =
+        new PasswordHasher<User>().HashPassword(new User(), "Timing-Equalization-Dummy-Password-1!");
+
+    /// <summary>
+    /// Identity error codes that confirm account existence. These are collapsed into a generic
+    /// message to avoid username/email enumeration during registration.
+    /// </summary>
+    private static readonly string[] dnumerationErrorCodes =
+    [
+        nameof(IdentityErrorDescriber.DuplicateUserName),
+        nameof(IdentityErrorDescriber.DuplicateEmail)
+    ];
+
+    /// <summary>
+    /// Generic registration failure message returned for enumeration-revealing errors so that
+    /// neither the username nor email field existence is disclosed.
+    /// </summary>
+    private static readonly string[] genericRegistrationFailure = ["Registration could not be completed."];
+
     private readonly IUserRepository userRepository;
 
     private readonly IJwtTokenService jwtTokenService;
@@ -95,6 +121,15 @@ public sealed class AuthController : ServiceControllerBase
 
         if (!result.Succeeded)
         {
+            // Deliberate UX/security tradeoff: when the failure confirms an existing account
+            // (duplicate username/email), return a generic message that does not disclose which
+            // field exists, preventing account enumeration. Non-enumerating failures (e.g. password
+            // policy) keep their descriptions so users still receive actionable validation feedback.
+            if (result.Errors.Any(error => dnumerationErrorCodes.Contains(error.Code, StringComparer.Ordinal)))
+            {
+                return this.BadRequest(genericRegistrationFailure);
+            }
+
             return this.BadRequest([.. result.Errors.Select(e => e.Description)]);
         }
 
@@ -144,6 +179,10 @@ public sealed class AuthController : ServiceControllerBase
 
         if (user == null)
         {
+            // Perform a dummy password verification to equalize timing with the found-user path,
+            // preventing username/email enumeration via login timing analysis. The result is ignored.
+            this.userRepository.UserManager.PasswordHasher.VerifyHashedPassword(new User(), dummyPasswordHash, loginRequest.Password);
+
             return this.Unauthorized("Invalid username or password.");
         }
 
@@ -436,7 +475,7 @@ public sealed class AuthController : ServiceControllerBase
         var csrfHeader = this.Request.Headers[AppHeaderNames.CsrfToken].ToString();
         var csrfCookie = this.Request.Cookies[CookieKeys.CsrfToken];
 
-        if (string.IsNullOrEmpty(csrfHeader) || csrfHeader != csrfCookie)
+        if (string.IsNullOrEmpty(csrfHeader) || !FixedTimeEquals(csrfHeader, csrfCookie))
         {
             return this.Unauthorized("CSRF token mismatch.");
         }
@@ -491,8 +530,11 @@ public sealed class AuthController : ServiceControllerBase
             Domain = this.authSettings.CookieDomain // Don't set domain to restrict to exact host
         });
 
-        // Generate and set CSRF token cookie for Double Submit Cookie pattern
-        var csrfToken = Guid.NewGuid().ToString();
+        // Generate and set CSRF token cookie for Double Submit Cookie pattern.
+        // Use a CSPRNG (32 random bytes, base64url encoded) rather than Guid to ensure unpredictability.
+        var csrfTokenBytes = new byte[32];
+        RandomNumberGenerator.Fill(csrfTokenBytes);
+        var csrfToken = Convert.ToBase64String(csrfTokenBytes).ConvertToBase64UrlEncodedString();
         this.Response.Cookies.Append(CookieKeys.CsrfToken, csrfToken, new CookieOptions
         {
             HttpOnly = false, // Must be false so JavaScript can read it

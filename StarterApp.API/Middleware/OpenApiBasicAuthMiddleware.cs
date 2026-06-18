@@ -1,5 +1,6 @@
 using System;
 using System.Net;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using StarterApp.API.Models.Settings;
@@ -45,17 +46,12 @@ public sealed class OpenApiBasicAuthMiddleware
             if (context.Request.Headers.TryGetValue("Authorization", out var authHeader) && authHeader.ToString().StartsWith("Basic ", StringComparison.Ordinal))
             {
                 // Get the encoded username and password
-                var encodedUsernamePassword = authHeader.ToString().Split(' ', 2, StringSplitOptions.RemoveEmptyEntries)[1]?.Trim();
+                // Take everything after the "Basic " scheme prefix; an empty/whitespace
+                // remainder is handled by TryParseBasicCredentials (-> 401), never a crash.
+                var encodedUsernamePassword = authHeader.ToString()["Basic ".Length..].Trim();
 
-                // Decode from Base64 to string
-                var decodedUsernamePassword = Encoding.UTF8.GetString(Convert.FromBase64String(encodedUsernamePassword ?? ""));
-
-                // Split username and password
-                var username = decodedUsernamePassword.Split(':', 2)[0];
-                var password = decodedUsernamePassword.Split(':', 2)[1];
-
-                // Check if login is correct
-                if (IsAuthorized(username, password, authSettings))
+                if (TryParseBasicCredentials(encodedUsernamePassword, out var username, out var password) &&
+                    IsAuthorized(username, password, authSettings))
                 {
                     await this.next.Invoke(context);
                     return;
@@ -74,6 +70,45 @@ public sealed class OpenApiBasicAuthMiddleware
         }
     }
 
+    /// <summary>
+    /// Decodes and splits a Base64-encoded "username:password" Basic auth value.
+    /// </summary>
+    /// <param name="encodedUsernamePassword">The Base64-encoded credentials, may be null.</param>
+    /// <param name="username">The parsed username when successful.</param>
+    /// <param name="password">The parsed password when successful.</param>
+    /// <returns><see langword="true"/> if the value was valid Base64 containing a colon separator; otherwise <see langword="false"/>.</returns>
+    private static bool TryParseBasicCredentials(string? encodedUsernamePassword, out string username, out string password)
+    {
+        username = string.Empty;
+        password = string.Empty;
+
+        if (string.IsNullOrEmpty(encodedUsernamePassword))
+        {
+            return false;
+        }
+
+        string decodedUsernamePassword;
+        try
+        {
+            decodedUsernamePassword = Encoding.UTF8.GetString(Convert.FromBase64String(encodedUsernamePassword));
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+
+        // A malformed header without a colon separator must yield 401, not a 500.
+        var separatorIndex = decodedUsernamePassword.IndexOf(':', StringComparison.Ordinal);
+        if (separatorIndex < 0)
+        {
+            return false;
+        }
+
+        username = decodedUsernamePassword[..separatorIndex];
+        password = decodedUsernamePassword[(separatorIndex + 1)..];
+        return true;
+    }
+
     private static bool IsAuthorized(string username, string password, OpenApiAuthSettings authSettings)
     {
         // Fail closed when no credentials are configured so that RequireAuth=true with
@@ -83,7 +118,15 @@ public sealed class OpenApiBasicAuthMiddleware
             return false;
         }
 
-        // Check that username and password are correct
-        return username.Equals(authSettings.Username, StringComparison.Ordinal) && password.Equals(authSettings.Password, StringComparison.Ordinal);
+        // Compare both username and password in constant time without short-circuiting
+        // to avoid leaking credential information through timing side channels.
+        var usernameMatches = CryptographicOperations.FixedTimeEquals(
+            Encoding.UTF8.GetBytes(username),
+            Encoding.UTF8.GetBytes(authSettings.Username));
+        var passwordMatches = CryptographicOperations.FixedTimeEquals(
+            Encoding.UTF8.GetBytes(password),
+            Encoding.UTF8.GetBytes(authSettings.Password));
+
+        return usernameMatches & passwordMatches;
     }
 }
