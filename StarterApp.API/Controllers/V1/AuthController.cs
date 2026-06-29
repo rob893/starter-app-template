@@ -499,6 +499,15 @@ public sealed class AuthController : ServiceControllerBase
             IsEssential = true,
             Domain = this.authSettings.CookieDomain
         });
+        this.Response.Cookies.Delete(CookieKeys.CsrfToken, new CookieOptions
+        {
+            HttpOnly = false,
+            Secure = true,
+            SameSite = SameSiteMode.None,
+            IsEssential = true,
+            Domain = this.authSettings.CookieDomain
+        });
+        this.DeleteOAuthFlowCookie();
 
         return this.NoContent();
     }

@@ -56,7 +56,7 @@ public static class RateLimiterServiceCollectionExtensions
                         });
                 }
 
-                if (path.StartsWith("/api/v1/auth/", StringComparison.OrdinalIgnoreCase))
+                if (IsStrictAuthRateLimitedPath(path))
                 {
                     return RateLimitPartition.GetFixedWindowLimiter(
                         partitionKey: httpContext.GetPartitionKey(),
@@ -106,6 +106,14 @@ public static class RateLimiterServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(context);
 
         return context.User.Identity?.Name ?? context.GetIpAddress() ?? "anonymous";
+    }
+
+    internal static bool IsStrictAuthRateLimitedPath(string path)
+    {
+        return path.StartsWith("/api/v1/auth/", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/api/v1/users/forgotpassword", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/api/v1/users/resetpassword", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/api/v1/users/emailconfirmations", StringComparison.OrdinalIgnoreCase);
     }
 
     // Intentionally does NOT read raw forwarding headers like X-Forwarded-For: those values are
