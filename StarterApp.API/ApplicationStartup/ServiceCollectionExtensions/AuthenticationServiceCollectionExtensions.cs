@@ -29,10 +29,13 @@ public static class AuthenticationServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(config);
 
         services.AddScoped<IJwtTokenService, JwtTokenService>();
+        services.AddScoped<IAuthTokenCookieService, AuthTokenCookieService>();
+        services.AddScoped<IOAuthFlowCookieService, OAuthFlowCookieService>();
         services.AddScoped<IGitHubOAuthService, GitHubOAuthService>();
         services.AddScoped<IGoogleOAuthService, GoogleOAuthService>();
         services.AddScoped<IExternalLoginService, ExternalLoginService>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
+        services.AddHttpContextAccessor();
 
         services.Configure<AuthenticationSettings>(config.GetSection(ConfigurationKeys.Authentication));
 

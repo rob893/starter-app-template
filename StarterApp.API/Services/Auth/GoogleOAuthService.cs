@@ -78,6 +78,12 @@ public sealed class GoogleOAuthService : IGoogleOAuthService
             });
     }
 
+    /// <summary>
+    /// Resolves the Google ID-token audiences to validate against, defaulting to the configured
+    /// client id when no explicit audiences are set so the <c>aud</c> claim is always pinned.
+    /// </summary>
+    /// <param name="authSettings">The authentication settings.</param>
+    /// <returns>The audiences to validate the Google ID token against.</returns>
     internal static IReadOnlyList<string> ResolveGoogleOAuthAudiences(AuthenticationSettings authSettings)
     {
         ArgumentNullException.ThrowIfNull(authSettings);
